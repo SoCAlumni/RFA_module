@@ -7,6 +7,7 @@ info:
       opened → knowledge_ready → drafted → scanned → reviewed → approved → posted
                                                               └→ rejected
       (어느 단계든) → needs_human
+      (예정, 미구현) rejected → drafted 재작성 루프, approved → republish 재게시
     순서 위반은 409. approve/reject 는 호스트 loopback(사람)만 호출할 수 있다.
     구현 단계: Step 3(코어), Step 4(scanned, policy), Step 5(approve/reject).
 servers:
@@ -132,8 +133,9 @@ paths:
                 properties:
                   status: { $ref: "#/components/schemas/ReviewStatus" }
                   posted_url: { type: string, format: uri }
-        "403": { description: loopback 이 아닌 출처 }
-        "409": { description: 순서 위반, verdict=block, 또는 비밀값 잔존 }
+        "403": { description: "loopback 이 아닌 출처. {error: loopback_only}" }
+        "409": { description: "순서 위반(invalid_transition) / verdict=block(verdict_is_block) / 토큰 잔존(secrets_in_final_body)" }
+        "502": { description: "게시 실패. {error: publish_failed, detail}. 문서는 approved 로 남는다" }
   /reviews/{id}/reject:
     post:
       operationId: rejectReview

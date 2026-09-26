@@ -17,6 +17,12 @@ FEEDBACK_FILE = "feedback.jsonl"
 FEEDBACK_LIMIT = 10
 
 
+def append_feedback(path: Path, item: FeedbackItem) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(item.model_dump_json() + "\n")
+
+
 class PolicyNotFound(Exception):
     def __init__(self, scope: str) -> None:
         super().__init__(f"no policy for scope {scope!r}")

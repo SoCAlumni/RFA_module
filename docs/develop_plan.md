@@ -22,7 +22,7 @@
 | 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
 | 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
 | 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
-| 4 | scanner + policy | |
+| 4 | scanner + policy | 완료 (PR #6) |
 | 5 | clearance + 결재 (approve/reject) | |
 | 6 | 알람/결재 웹 | |
 | 7 | github MCP | |
@@ -148,7 +148,7 @@ services/tests/test_review_core.py
 
 **테스트.** 정상 경로 opened→…→reviewed, 각 잘못된 전이 409, 404, events 길이, 목록 status 필터, 재시작 후 로드.
 
-**완료 조건.** `uv run pytest`, `uvicorn review.app:app --port 8790` 후 curl로 opened→reviewed 재현.
+**완료 조건.** `uv run pytest`, `uvicorn --factory review.app:create_app --port 8790` 후 (RFA_CLEARANCE_KEY 필요) curl로 opened→reviewed 재현.
 
 ---
 
@@ -276,3 +276,8 @@ workflow/tests/test_graph.py, fixtures/
 ## Step 12+ (9/27~)
 
 Internal 대응 데스크와 채널(로컬 파일 흉내), censor_internal, `data/policy/internal/*`, personal 기준 추가 API + 화면, 결재 웹 편집 후 승인.
+
+**재결재 경로** (설계 확정, 구현 대기 — `docs/modules/review-service.md` 상태기계 참고):
+- `rejected → drafted` 재작성 루프: 거절 사유를 writer 입력으로 되돌림. store `ALLOWED[DRAFTED]`에 `REJECTED` 추가 + revision 카운터.
+- `POST /reviews/{id}/republish`: 게시 실패로 `approved`에 갇힌 문서 재게시 (loopback 전용). `ALLOWED[POSTED]`는 그대로(`APPROVED`)이므로 엔드포인트만 추가.
+- 결재 웹(Step 6)은 rejected/approved 문서에 각각 "재작성 요청됨" 표시와 "재게시" 버튼 자리를 미리 잡아 둔다.
