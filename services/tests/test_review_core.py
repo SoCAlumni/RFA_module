@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from review.app import create_app
-from review.store import ReviewStore
-from rfa_common.models import OpenReviewRequest
+from review.store import InvalidTransition, ReviewStore, Step
+from rfa_common.models import KnowledgeResult, OpenReviewRequest, ReviewStatus
 
 OPEN = {
     "channel": "public",
@@ -196,6 +196,44 @@ def test_draft_is_scanned_with_repo_rules(tmp_path):
         ("token", "hf_AbCdEf1234567890GhIjKlMn"),
     ]
     assert body["events"][-1]["detail"] == "3 hits"
+
+
+def test_advance_saves_nothing_when_a_later_step_fails(tmp_path):
+    """첫 Step 은 허용되어 문서를 고치지만 두 번째 Step 이 막히면, 파일은 한 글자도 안 바뀐다."""
+    store = ReviewStore(tmp_path)
+    rid = store.create(OpenReviewRequest.model_validate(OPEN), who="intake").id
+    store.advance(
+        rid,
+        Step(
+            ReviewStatus.KNOWLEDGE_READY,
+            "knowledge",
+            mutate=lambda r: setattr(r, "knowledge", KnowledgeResult.model_validate(KNOWLEDGE)),
+        ),
+    )
+    path = tmp_path / f"review-{rid}.json"
+    before_bytes = path.read_bytes()
+    before = store.get(rid)
+
+    def put_draft(r):
+        r.draft = "새 초안"
+
+    with pytest.raises(InvalidTransition) as exc:
+        store.advance(
+            rid,
+            # 허용: knowledge_ready → drafted (문서의 draft 를 고침)
+            Step(ReviewStatus.DRAFTED, "press", mutate=put_draft),
+            # 거부: drafted → reviewed (scanned 를 거쳐야 함)
+            Step(ReviewStatus.REVIEWED, "censor"),
+        )
+
+    assert (exc.value.current, exc.value.to) == (ReviewStatus.DRAFTED, ReviewStatus.REVIEWED)
+    assert path.read_bytes() == before_bytes
+    after = store.get(rid)
+    assert after == before
+    assert after.status == ReviewStatus.KNOWLEDGE_READY
+    assert after.draft is None
+    assert [e.what for e in after.events] == ["opened", "knowledge_ready"]
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_concurrent_creates_get_unique_ids(tmp_path):
