@@ -16,6 +16,7 @@ paths:
     post:
       operationId: openReview
       summary: 결재 문서 개설 (→ opened)
+      parameters: [{ $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
         content:
@@ -51,12 +52,12 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Review" }
-        "404": { description: 없음 }
+        "404": { $ref: "#/components/responses/NotFound" }
   /reviews/{id}/knowledge:
     post:
       operationId: attachKnowledge
       summary: 실무대장 응답 첨부 (opened → knowledge_ready)
-      parameters: [{ $ref: "#/components/parameters/ReviewId" }]
+      parameters: [{ $ref: "#/components/parameters/ReviewId" }, { $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
         content:
@@ -69,7 +70,7 @@ paths:
     post:
       operationId: submitDraft
       summary: 최종 초안 제출. 서버가 비밀값 스캔을 자동 실행 (knowledge_ready → drafted → scanned)
-      parameters: [{ $ref: "#/components/parameters/ReviewId" }]
+      parameters: [{ $ref: "#/components/parameters/ReviewId" }, { $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
         content:
@@ -89,7 +90,7 @@ paths:
     post:
       operationId: submitVerdict
       summary: 기밀검토 판정 (scanned → reviewed)
-      parameters: [{ $ref: "#/components/parameters/ReviewId" }]
+      parameters: [{ $ref: "#/components/parameters/ReviewId" }, { $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
         content:
@@ -102,7 +103,7 @@ paths:
     post:
       operationId: markNeedsHuman
       summary: 자동 처리 불가. 사람에게 넘김 (→ needs_human)
-      parameters: [{ $ref: "#/components/parameters/ReviewId" }]
+      parameters: [{ $ref: "#/components/parameters/ReviewId" }, { $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
         content:
@@ -169,12 +170,28 @@ paths:
         "404": { description: 없는 scope }
 components:
   parameters:
+    Actor:
+      name: X-RFA-Actor
+      in: header
+      required: false
+      description: 이 요청을 보낸 주체(intake, press, censor_public 등). events[].who 에 기록. 없으면 "unknown"
+      schema: { type: string, default: unknown }
     ReviewId:
       name: id
       in: path
       required: true
       schema: { type: integer, minimum: 1 }
   responses:
+    NotFound:
+      description: 없는 결재 문서
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, id]
+            properties:
+              error: { type: string, const: not_found }
+              id: { type: integer }
     ReviewOk:
       description: 갱신된 문서
       content:
