@@ -19,7 +19,7 @@
 | Step | 기능 | 상태 |
 |---|---|---|
 | 0 | 초기 커밋 (docs, README, .gitignore) | 완료 |
-| 1 | 스켈레톤 + 계약 + 공용 모델 | |
+| 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
 | 2 | knowledge stub + 데모 데이터 | |
 | 3 | review 코어 (상태기계, reviews API) | |
 | 4 | scanner + policy | |

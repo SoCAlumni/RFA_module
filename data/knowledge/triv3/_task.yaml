@@ -1,0 +1,3 @@
+name: TRIV3 모델 벤치마크
+description: TRIV3 온디바이스 모델의 정확도/지연 벤치마크와 양자화 회귀 추적
+updated_at: 2026-09-24
