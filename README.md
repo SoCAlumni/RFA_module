@@ -5,6 +5,7 @@ NVIDIA Agentic AI 해커톤 팀 프로젝트(개인 비서 멀티에이전트)�
 
 - 계획과 결정: [docs/plan.md](docs/plan.md)
 - 구조: [docs/architecture.md](docs/architecture.md)
+- API 계약 문서: https://socalumni.github.io/RFA_module/ (`contracts/*.openapi.yaml`에서 자동 생성, 수정은 yaml로)
 - 모듈별 문서: [docs/modules/](docs/modules/)
 - 개발 단계: [docs/develop_plan.md](docs/develop_plan.md)
 - 셋업: [docs/setup.md](docs/setup.md)
