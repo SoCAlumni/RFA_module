@@ -22,7 +22,7 @@
 | 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
 | 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
 | 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
-| 4 | scanner + policy | |
+| 4 | scanner + policy | 완료 (PR #6) |
 | 5 | clearance + 결재 (approve/reject) | |
 | 6 | 알람/결재 웹 | |
 | 7 | github MCP | |
@@ -148,7 +148,7 @@ services/tests/test_review_core.py
 
 **테스트.** 정상 경로 opened→…→reviewed, 각 잘못된 전이 409, 404, events 길이, 목록 status 필터, 재시작 후 로드.
 
-**완료 조건.** `uv run pytest`, `uvicorn review.app:app --port 8790` 후 curl로 opened→reviewed 재현.
+**완료 조건.** `uv run pytest`, `uvicorn --factory review.app:create_app --port 8790` 후 (RFA_CLEARANCE_KEY 필요) curl로 opened→reviewed 재현.
 
 ---
 

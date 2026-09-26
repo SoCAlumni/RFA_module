@@ -76,6 +76,11 @@ def scan(text: str, rules: ScanRules) -> list[ScanHit]:
     return _drop_overlaps(hits)
 
 
+def has_token(text: str) -> bool:
+    """approve 직전 최종 본문에 토큰이 남아 있는지. 남아 있으면 서버가 게시를 거부한다."""
+    return TOKEN_RE.search(text) is not None
+
+
 def _find(kind: ScanType, pattern: re.Pattern[str], text: str) -> list[ScanHit]:
     return [ScanHit(type=kind, match=m.group(), span=m.span()) for m in pattern.finditer(text)]
 

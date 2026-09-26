@@ -18,12 +18,15 @@ from rfa_common.models import Event, OpenReviewRequest, Review, ReviewStatus
 
 S = ReviewStatus
 
-# to 상태 → 허용되는 from 상태들. Step 5 에서 approved/rejected/posted 추가.
+# to 상태 → 허용되는 from 상태들.
 ALLOWED: dict[ReviewStatus, frozenset[ReviewStatus]] = {
     S.KNOWLEDGE_READY: frozenset({S.OPENED}),
     S.DRAFTED: frozenset({S.KNOWLEDGE_READY}),
     S.SCANNED: frozenset({S.DRAFTED}),
     S.REVIEWED: frozenset({S.SCANNED}),
+    S.APPROVED: frozenset({S.REVIEWED}),
+    S.REJECTED: frozenset({S.REVIEWED}),
+    S.POSTED: frozenset({S.APPROVED}),
     S.NEEDS_HUMAN: frozenset({S.OPENED, S.KNOWLEDGE_READY, S.DRAFTED, S.SCANNED, S.REVIEWED}),
 }
 

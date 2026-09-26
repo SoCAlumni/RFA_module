@@ -71,7 +71,8 @@ opened → knowledge_ready → drafted → scanned → reviewed → approved →
 payload = {review_id, target, body_sha256, exp}
 token   = base64(payload) + "." + HMAC_SHA256(RFA_CLEARANCE_KEY, payload)
 ```
-`post_comment(target, body, token)`는 서명, 만료, `sha256(body) == body_sha256`, `target` 일치를 확인한다. 키는 호스트 환경변수에만 있다.
+게시자는 서명, 만료(기본 10분), `sha256(body) == body_sha256`, `target` 일치를 확인한다. 키는 호스트 환경변수에만 있고, 키가 없으면 앱이 뜨지 않는다.
+approve 순서: loopback 확인 → (reviewed 일 때) block/토큰 잔존 검사 → `approved` 기록 → 토큰 발급 → publish → `posted` 기록. 게시가 실패하면 502를 주고 문서는 `approved`로 남는다(재게시는 이후 단계). reject 사유와 redact 승인 사례는 `data/policy/feedback.jsonl`에 쌓인다.
 
 ## 알람/결재 웹 (`static/index.html`)
 
