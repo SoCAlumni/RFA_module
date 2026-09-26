@@ -10,10 +10,10 @@
 
 | 이름 | 노출 | 종류 | 결재 | 설명 |
 |---|---|---|---|---|
-| `list_mentions(since)` | MCP | 읽기 | 불필요 | `GET /notifications?participating=true` 중 reason=mention. `Mention{target, author, text, url, created_at}` |
+| `list_mentions(since?)` | MCP | 읽기 | 불필요 | 감시 레포(`RFA_GITHUB_REPOS`)의 `GET /repos/{r}/issues`, `/issues/comments`(since 이후)에서 `@RFA_GITHUB_LOGIN`을 찾음. since 이전 글과 **이 시스템이 게시한 답글**(`<!-- rfa-bot -->` 표시)은 제외, 대소문자 무시. 본인이 직접 쓴 `@login`은 인정(혼자서도 비서를 부를 수 있고 데모가 쉬움). 한 번 돌려준 멘션은 `data/state/mentions_seen.json`에 기록해 다시 안 줌(at-most-once). `since` 생략 시 마지막 확인 시각, 처음이면 24시간 전 |
 | `get_thread(target)` | MCP | 읽기 | 불필요 | 이슈/PR 본문 + 최근 댓글 N개 |
 | `get_diff(pr)` | MCP | 읽기 | 불필요 | 9/28 코드리뷰 대비, 오늘은 미구현 |
-| `post_comment(target, body, clearance)` | **내부 함수만** | 쓰기 | **필수** | `clearance.verify` 통과 시 `POST /repos/{o}/{r}/issues/{n}/comments` |
+| `post_comment(target, body, clearance)` | **내부 함수만** | 쓰기 | **필수** | `clearance.verify` 통과 시 `POST /repos/{o}/{r}/issues/{n}/comments`. 본문 끝에 화면에 안 보이는 `<!-- rfa-bot -->`를 붙여, 이 답글에 `@login`이 있어도 다음 폴링에서 멘션으로 잡히지 않게 한다 |
 
 `target` 형식: `owner/repo#number`.
 
@@ -29,7 +29,7 @@
 
 ## 토큰 취급
 
-- 호스트 `.env`의 `GITHUB_TOKEN`(git 없이 fine-grained: issues read/write, notifications read).
+- 호스트 `.env`의 `GITHUB_TOKEN`: fine-grained, 감시 레포 한정, Issues read/write. **notifications API는 fine-grained 토큰을 지원하지 않아서** 멘션은 레포 이슈/댓글을 직접 읽어 찾는다. 감시 범위가 지정 레포로 좁아지는 장점도 있다.
 - nemoclaw 등록 시 `--env GITHUB_MCP_TOKEN`은 **MCP 서버 자체 인증**(bearer)용이고 GitHub 토큰이 아니다. 샌드박스에는 어느 토큰도 들어가지 않는다.
 - 게시에 쓰는 GitHub 토큰은 호스트 프로세스에만 있다.
 
@@ -51,9 +51,10 @@ nemoclaw rfa mcp add github \
 
 ```
 services/mcp_channels/
-├─ server.py        # FastMCP 앱 마운트 (/github/mcp), bearer 검사
-├─ github.py        # 툴 + post_comment 내부 함수
-└─ models.py        # Mention, Thread
+├─ server.py        # MCPServer(/github/mcp) + BearerAuth + Host 허용 목록. uvicorn --factory mcp_channels.server:create_app
+├─ github.py        # GithubClient(읽기 + create_comment), find_mentions, MentionTracker
+└─ models.py        # Thread, ThreadComment (Mention 은 rfa_common)
+services/review/publisher.py  # GithubPublisher: clearance 검증 → create_comment. RFA_PUBLISHER=github 로 선택
 ```
 
 ## 다른 모듈과의 연결
@@ -66,13 +67,14 @@ services/mcp_channels/
 
 ## 할 일
 
-- [ ] Mention 모델, list_mentions (since 기준 중복 방지: `data/state/mentions_seen.json`)
-- [ ] get_thread
-- [ ] post_comment + clearance.verify + 테스트(무토큰/위조/본문 변경 거부)
-- [ ] bearer 검사, FastMCP streamable-http 마운트
-- [ ] 테스트 레포 `zetwhite/rfa-test` 준비, 이슈 하나 생성
+- [x] list_mentions (레포 이슈·댓글 검색, `mentions_seen.json`으로 중복 방지)
+- [x] get_thread
+- [x] post_comment(`create_comment`, MCP 미노출) + GithubPublisher의 clearance 검증 + 테스트
+- [x] bearer 검사, streamable-http(`mcp` 2.x `MCPServer`, stateless + JSON 응답), Host 허용 목록 `RFA_MCP_ALLOWED_HOSTS`
+- [x] 테스트 레포 `zetwhite/RFA_test`에서 실제 확인: 멘션 감지 → 스레드 읽기 → 승인 → 댓글 게시
 
 ## 미정
 
-- notifications API가 멘션을 늦게 주는 경우 대비해 issue comments 검색(`search/issues?q=mentions:zetwhite`) 병행 여부.
+- 레포당 최근 100건(한 페이지)만 본다. 멘션이 많은 레포면 페이지네이션 필요.
+- at-most-once라서 list 후 처리 중 죽으면 그 멘션은 다시 오지 않는다. 필요하면 review 쪽에서 source_url 중복 확인 방식으로 바꾼다.
 - `since` 저장 위치를 review 서비스로 옮길지.

@@ -19,6 +19,12 @@ Rule = Annotated[str, Field(pattern=RULE_PATTERN, description="scope:rule-id")]
 Confidence = Annotated[float, Field(ge=0.0, le=1.0)]
 
 
+def parse_target(target: str) -> tuple[str, int]:
+    """ "owner/repo#34" → ("owner/repo", 34). 형식은 Target 이 검증한다."""
+    repo, _, number = target.partition("#")
+    return repo, int(number)
+
+
 class Channel(StrEnum):
     PUBLIC = "public"
     INTERNAL = "internal"

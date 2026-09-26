@@ -4,7 +4,7 @@
 
 - nemoclaw v0.0.124 + OpenShell 설치, Docker 동작, `nemoclaw onboard` 1회 완료(inference provider 설정됨).
 - Python 3.12+, `uv`.
-- GitHub fine-grained 토큰(테스트 레포 issues r/w, notifications read).
+- GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write (+ Pull requests read). notifications 권한은 필요 없음.
 
 ## 파일
 
