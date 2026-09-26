@@ -69,6 +69,7 @@ flowchart LR
 | 15 | 호스트 | 코드 | `approval.py` (loopback만) → `clearance.sign` → `github.post_comment` | `approved` → `posted`. GitHub에 수정본 게시 |
 
 거절 시: 15 대신 `rejected`, 사유가 `data/policy/feedback.jsonl`에 추가되어 다음 12번에 few-shot으로 주입.
+(예정) 재결재 경로: 거절 사유를 갖고 writer가 재작성(`rejected → drafted`)해 같은 관문을 다시 통과하고, 게시 실패 문서는 결재 웹에서 재게시한다. `docs/modules/review-service.md` 참고.
 
 데모용 stub 지식(`data/knowledge/orbit/`)에는 일부러 다음을 섞는다: 미공개 릴리즈 일자(official), 몰래 쓰는 GPU pool(personal), 내부 IP·토큰(scanner). 12번에서 이들이 각각 어떤 기준으로 걸리는지 결재 웹에 보이게 한다.
 

@@ -44,9 +44,16 @@
 상태기계:
 ```
 opened → knowledge_ready → drafted → scanned → reviewed → approved → posted
-                                                        └→ rejected
+                              ▲                            │  │  ▲
+                              │         rejected ◄─────────┘  │  └ (예정) republish
+                              └── (예정) 재작성: 거절 사유 반영 ──┘
 (어느 단계에서든) → needs_human
 ```
+
+**재결재 경로 (Step 12+, 미구현)**
+- `rejected → drafted`: writer가 `decision.reason`(거절 사유)을 반영해 새 초안 제출. 이후 스캔→심사→결재를 다시 거친다. `revision` 카운터와 이전 초안 이력을 문서에 남긴다.
+- `POST /reviews/{id}/republish` (loopback 전용): 게시 실패로 `approved`에 머문 문서를 재게시. 새 토큰 발급 → publish → `posted`.
+- 현재 구현은 rejected/approved(게시 실패)가 종착지다. 전이표 `ALLOWED`에 두 항목을 추가하면 열린다.
 `final_body` = verdict가 redact면 `redacted_body`, allow면 `draft`. block이면 approve 불가.
 
 ## 스캐너 (`scanner.py`)

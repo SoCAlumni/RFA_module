@@ -7,6 +7,7 @@ info:
       opened → knowledge_ready → drafted → scanned → reviewed → approved → posted
                                                               └→ rejected
       (어느 단계든) → needs_human
+      (예정, 미구현) rejected → drafted 재작성 루프, approved → republish 재게시
     순서 위반은 409. approve/reject 는 호스트 loopback(사람)만 호출할 수 있다.
     구현 단계: Step 3(코어), Step 4(scanned, policy), Step 5(approve/reject).
 servers:

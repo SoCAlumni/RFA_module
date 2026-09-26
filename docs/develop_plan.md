@@ -276,3 +276,8 @@ workflow/tests/test_graph.py, fixtures/
 ## Step 12+ (9/27~)
 
 Internal 대응 데스크와 채널(로컬 파일 흉내), censor_internal, `data/policy/internal/*`, personal 기준 추가 API + 화면, 결재 웹 편집 후 승인.
+
+**재결재 경로** (설계 확정, 구현 대기 — `docs/modules/review-service.md` 상태기계 참고):
+- `rejected → drafted` 재작성 루프: 거절 사유를 writer 입력으로 되돌림. store `ALLOWED[DRAFTED]`에 `REJECTED` 추가 + revision 카운터.
+- `POST /reviews/{id}/republish`: 게시 실패로 `approved`에 갇힌 문서 재게시 (loopback 전용). `ALLOWED[POSTED]`는 그대로(`APPROVED`)이므로 엔드포인트만 추가.
+- 결재 웹(Step 6)은 rejected/approved 문서에 각각 "재작성 요청됨" 표시와 "재게시" 버튼 자리를 미리 잡아 둔다.
