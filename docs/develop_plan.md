@@ -21,7 +21,7 @@
 | 0 | 초기 커밋 (docs, README, .gitignore) | 완료 |
 | 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
 | 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
-| 3 | review 코어 (상태기계, reviews API) | |
+| 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
 | 4 | scanner + policy | |
 | 5 | clearance + 결재 (approve/reject) | |
 | 6 | 알람/결재 웹 | |
@@ -164,13 +164,13 @@ services/review/scanner.py
 services/review/policy.py
 data/policy/public/official.md, personal.md
 data/policy/internal_hosts.txt, internal_paths.txt
-data/policy/feedback.jsonl   (빈 파일 또는 예시 1건)
+(data/policy/feedback.jsonl 은 런타임 파일이라 gitignore, 없으면 빈 목록)
 services/tests/test_scanner.py, test_policy.py
 ```
 
 **동작 정의.**
 - `scan(text) -> ScanHit[]`: token(hf_/ghp_/github_pat_/sk-/AKIA/xox[bp]-), private_ip(RFC1918), internal_host(목록), internal_path(목록 접두사). 겹치는 hit는 긴 것 우선.
-- `/draft`: drafted 기록 → scan → scanned 기록(events 2건).
+- `/draft`: drafted 기록 → scan → scanned 기록(events 2건). 두 전이는 `store.advance(*steps)`로 한 번에 저장.
 - `GET /policy/{scope}` → `{scope, official: str, personal: str, feedback: FeedbackItem[]}`. scope는 public|internal, 없는 scope 404. feedback은 scope 일치 최근 10건, reject 우선.
 
 **테스트.** 각 패턴 검출/비검출, 겹침 처리, `/draft` 후 status=scanned & scan 채워짐, policy 응답, 없는 scope 404.

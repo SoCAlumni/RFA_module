@@ -1,0 +1,73 @@
+{
+  "id": 1,
+  "status": "needs_human",
+  "channel": "public",
+  "target": "zetwhite/rfa-test#34",
+  "source_url": "https://github.com/zetwhite/rfa-test/issues/34",
+  "requester": "manual-tester",
+  "question": "현재 진행 상황 알려줘",
+  "knowledge": {
+    "task_id": "string",
+    "answer": "string",
+    "confidence": 1.0,
+    "sources": [
+      "string"
+    ]
+  },
+  "draft": "현재 기능 구현 중이며, 다음 주에 테스트를 진행할 예정입니다.",
+  "edit_log": [
+    {
+      "round": 1,
+      "verdict": "pass",
+      "notes": "초안 확인 완료",
+      "issues": []
+    }
+  ],
+  "scan": [],
+  "verdict": {
+    "verdict": "allow",
+    "redacted_body": "string",
+    "reasons": [
+      {
+        "rule": "scanner:w-c72i",
+        "span": "string",
+        "action": "remove"
+      }
+    ],
+    "summary": "string"
+  },
+  "final_body": "현재 기능 구현 중이며, 다음 주에 테스트를 진행할 예정입니다.",
+  "decision": null,
+  "events": [
+    {
+      "at": "2026-09-26T08:00:27.159047Z",
+      "who": "unknown",
+      "what": "opened",
+      "detail": null
+    },
+    {
+      "at": "2026-09-26T08:04:41.151265Z",
+      "who": "unknown",
+      "what": "knowledge_ready",
+      "detail": "string"
+    },
+    {
+      "at": "2026-09-26T08:07:40.351928Z",
+      "who": "unknown",
+      "what": "drafted",
+      "detail": null
+    },
+    {
+      "at": "2026-09-26T08:08:03.125403Z",
+      "who": "unknown",
+      "what": "reviewed",
+      "detail": "allow"
+    },
+    {
+      "at": "2026-09-26T08:08:21.278042Z",
+      "who": "unknown",
+      "what": "needs_human",
+      "detail": "string"
+    }
+  ]
+}

@@ -145,6 +145,28 @@ class NeedsHumanRequest(BaseModel):
     reason: str
 
 
+class FeedbackDecision(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
+
+
+class FeedbackItem(BaseModel):
+    at: datetime
+    scope: Channel
+    review_id: int
+    decision: FeedbackDecision
+    reason: str | None = None
+    draft_excerpt: str | None = None
+    rule_hint: str | None = None
+
+
+class Policy(BaseModel):
+    scope: Channel
+    official: str
+    personal: str
+    feedback: list[FeedbackItem] = Field(default_factory=list)
+
+
 class Review(BaseModel):
     id: int
     status: ReviewStatus

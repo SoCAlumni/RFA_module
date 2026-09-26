@@ -167,7 +167,16 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Policy" }
-        "404": { description: 없는 scope }
+        "404":
+          description: 없는 scope 이거나 그 scope 의 official.md 가 아직 없음
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, scope]
+                properties:
+                  error: { type: string, const: not_found }
+                  scope: { type: string }
 components:
   parameters:
     Actor:
@@ -304,4 +313,7 @@ components:
         scope: { $ref: "#/components/schemas/Channel" }
         official: { type: string, description: official.md 본문 }
         personal: { type: string, description: personal.md 본문 }
-        feedback: { type: array, items: { $ref: "#/components/schemas/FeedbackItem" } }
+        feedback:
+          type: array
+          description: 같은 scope 의 사람 결재 사례. reject 먼저, 그 안에서 최신순, 최대 10건
+          items: { $ref: "#/components/schemas/FeedbackItem" }

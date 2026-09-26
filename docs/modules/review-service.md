@@ -58,7 +58,10 @@ opened → knowledge_ready → drafted → scanned → reviewed → approved →
 | token | `hf_[A-Za-z0-9]{20,}`, `ghp_…`, `github_pat_…`, `sk-…`, `AKIA…`, `xox[bp]-…` |
 | private_ip | `10.x.x.x`, `172.16-31.x.x`, `192.168.x.x` |
 | internal_host | `data/policy/internal_hosts.txt`의 도메인/호스트명 |
-| internal_path | `/nfs/`, `//sr-`, `C:\\Users\\` 등 `data/policy/internal_paths.txt` |
+| internal_path | `data/policy/internal_paths.txt`의 접두사(`/nfs/`, `/mnt/shared/`, `\\fileserver\`)로 시작하는 경로, 공백·따옴표 전까지 |
+
+- 겹치는 hit는 긴 것만 남긴다 (예: `/nfs/keys/hf_…` 는 경로 하나로).
+- `/draft` 요청 하나에서 `drafted`와 `scanned` 두 전이를 **한 번에 저장**한다(`store.advance`가 여러 Step을 받아 전부 검증 후 한 번 쓰기). events에는 `press → drafted`, `scanner → scanned ("N hits")` 두 건이 남는다.
 
 결과는 censor에게 "참고"로 전달되며, block 여부는 censor가 정한다. 단, `token`이 남아 있는 final_body는 approve 시 서버가 거부한다.
 
@@ -83,11 +86,11 @@ token   = base64(payload) + "." + HMAC_SHA256(RFA_CLEARANCE_KEY, payload)
 ```
 services/review/
 ├─ app.py            # FastAPI 앱, 라우트, 404/409 핸들러, final_body 계산
-├─ store.py          # json 파일 저장(tmp→rename), 전이표 ALLOWED, advance()
+├─ store.py          # json 파일 저장(tmp→rename), 전이표 ALLOWED, advance(*Step)
+├─ scanner.py        # 규칙 기반 비밀값 스캔
+├─ policy.py         # official/personal/feedback 읽기
 (모델은 services/rfa_common/models.py 공용)
-├─ scanner.py
-├─ clearance.py
-├─ policy.py         # official/personal/feedback 읽기, feedback 추가
+├─ clearance.py      # (Step 5)
 ├─ publisher.py      # 승인 후 채널별 게시 (github → mcp_channels 내부 함수 호출)
 └─ static/index.html
 ```

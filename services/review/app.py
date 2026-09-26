@@ -1,4 +1,4 @@
-"""결재 문서 API (Step 3: 생성과 전이). contracts/review.openapi.yaml 참고."""
+"""결재 문서 API. contracts/review.openapi.yaml 참고."""
 
 from __future__ import annotations
 
@@ -13,13 +13,16 @@ from rfa_common.models import (
     KnowledgeResult,
     NeedsHumanRequest,
     OpenReviewRequest,
+    Policy,
     Review,
     ReviewStatus,
     Verdict,
     VerdictDecision,
 )
 
-from review.store import InvalidTransition, ReviewNotFound, ReviewStore
+from review.policy import PolicyNotFound, load_policy
+from review.scanner import load_rules, scan
+from review.store import InvalidTransition, ReviewNotFound, ReviewStore, Step
 
 DEFAULT_DATA_DIR = Path("./data")
 
@@ -29,11 +32,16 @@ Actor = Annotated[str, Header(alias="X-RFA-Actor")]
 def create_app(data_dir: Path | None = None) -> FastAPI:
     root = data_dir or Path(os.environ.get("RFA_DATA_DIR", DEFAULT_DATA_DIR))
     store = ReviewStore(root / "state")
+    policy_dir = root / "policy"
     app = FastAPI(title="RFA review", version="0.1.0")
 
     @app.exception_handler(ReviewNotFound)
     def _not_found(_: Request, exc: ReviewNotFound) -> JSONResponse:
         return JSONResponse(status_code=404, content={"error": "not_found", "id": exc.review_id})
+
+    @app.exception_handler(PolicyNotFound)
+    def _no_policy(_: Request, exc: PolicyNotFound) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"error": "not_found", "scope": exc.scope})
 
     @app.exception_handler(InvalidTransition)
     def _conflict(_: Request, exc: InvalidTransition) -> JSONResponse:
@@ -60,16 +68,25 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             r.knowledge = body
 
         return store.advance(
-            review_id, ReviewStatus.KNOWLEDGE_READY, who=who, detail=body.task_id, mutate=apply
+            review_id, Step(ReviewStatus.KNOWLEDGE_READY, who, detail=body.task_id, mutate=apply)
         )
 
     @app.post("/reviews/{review_id}/draft", response_model=Review)
     def submit_draft(review_id: int, body: DraftRequest, who: Actor = "unknown") -> Review:
-        def apply(r: Review) -> None:
+        hits = scan(body.text, load_rules(policy_dir))
+
+        def put_draft(r: Review) -> None:
             r.draft = body.text
             r.edit_log = body.edit_log
 
-        return store.advance(review_id, ReviewStatus.DRAFTED, who=who, mutate=apply)
+        def put_scan(r: Review) -> None:
+            r.scan = hits
+
+        return store.advance(
+            review_id,
+            Step(ReviewStatus.DRAFTED, who, mutate=put_draft),
+            Step(ReviewStatus.SCANNED, "scanner", detail=f"{len(hits)} hits", mutate=put_scan),
+        )
 
     @app.post("/reviews/{review_id}/verdict", response_model=Review)
     def submit_verdict(review_id: int, body: Verdict, who: Actor = "unknown") -> Review:
@@ -78,12 +95,16 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
             r.final_body = final_body(r.draft, body)
 
         return store.advance(
-            review_id, ReviewStatus.REVIEWED, who=who, detail=body.verdict, mutate=apply
+            review_id, Step(ReviewStatus.REVIEWED, who, detail=body.verdict, mutate=apply)
         )
 
     @app.post("/reviews/{review_id}/needs-human", response_model=Review)
     def mark_needs_human(review_id: int, body: NeedsHumanRequest, who: Actor = "unknown") -> Review:
-        return store.advance(review_id, ReviewStatus.NEEDS_HUMAN, who=who, detail=body.reason)
+        return store.advance(review_id, Step(ReviewStatus.NEEDS_HUMAN, who, detail=body.reason))
+
+    @app.get("/policy/{scope}", response_model=Policy)
+    def get_policy(scope: str) -> Policy:
+        return load_policy(policy_dir, scope)
 
     return app
 

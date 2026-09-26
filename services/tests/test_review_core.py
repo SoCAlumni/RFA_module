@@ -64,8 +64,9 @@ def test_happy_path_opened_to_reviewed(client):
     assert r.json()["knowledge"]["task_id"] == "orbit"
 
     r = client.post(f"/reviews/{rid}/draft", json=DRAFT, headers=as_actor("press"))
-    assert r.json()["status"] == "drafted"
+    assert r.json()["status"] == "scanned"
     assert r.json()["draft"] == DRAFT["text"]
+    assert r.json()["scan"] == []
     assert [e["verdict"] for e in r.json()["edit_log"]] == ["revise", "pass"]
 
     r = client.post(f"/reviews/{rid}/verdict", json=REDACT, headers=as_actor("censor_public"))
@@ -76,6 +77,7 @@ def test_happy_path_opened_to_reviewed(client):
         ("intake", "opened", None),
         ("knowledge", "knowledge_ready", "orbit"),
         ("press", "drafted", None),
+        ("scanner", "scanned", "0 hits"),
         ("censor_public", "reviewed", "redact"),
     ]
     assert client.get(f"/reviews/{rid}").json() == body
@@ -105,7 +107,8 @@ def test_actor_defaults_to_unknown(client):
         ([], "verdict", REDACT, "opened", "reviewed"),
         (["knowledge"], "knowledge", KNOWLEDGE, "knowledge_ready", "knowledge_ready"),
         (["knowledge"], "verdict", REDACT, "knowledge_ready", "reviewed"),
-        (["knowledge", "draft"], "draft", DRAFT, "drafted", "drafted"),
+        (["knowledge", "draft"], "draft", DRAFT, "scanned", "drafted"),
+        (["knowledge", "draft"], "knowledge", KNOWLEDGE, "scanned", "knowledge_ready"),
         (["knowledge", "draft", "verdict"], "verdict", REDACT, "reviewed", "reviewed"),
     ],
 )
@@ -160,7 +163,7 @@ def test_list_filters_by_status(client):
     b = to_drafted(client)
     all_ids = [r["id"] for r in client.get("/reviews").json()]
     assert all_ids == [a, b]
-    assert [r["id"] for r in client.get("/reviews?status=drafted").json()] == [b]
+    assert [r["id"] for r in client.get("/reviews?status=scanned").json()] == [b]
     assert client.get("/reviews?status=posted").json() == []
     assert client.get("/reviews?status=bogus").status_code == 422
 
@@ -174,6 +177,25 @@ def test_state_survives_restart_and_ids_continue(tmp_path):
     assert second.get(f"/reviews/{rid}").json()["status"] == "knowledge_ready"
     assert second.post("/reviews", json=OPEN).json()["id"] == rid + 1
     assert list((tmp_path / "state").glob("*.tmp")) == []
+
+
+def test_draft_is_scanned_with_repo_rules(tmp_path):
+    (tmp_path / "policy").mkdir()
+    (tmp_path / "policy" / "internal_paths.txt").write_text("/nfs/\n", encoding="utf-8")
+    client = TestClient(create_app(tmp_path))
+    rid = open_review(client)
+    client.post(f"/reviews/{rid}/knowledge", json=KNOWLEDGE)
+    text = "평가는 10.12.3.4 에서, 결과는 /nfs/orbit/ 에. 토큰 hf_AbCdEf1234567890GhIjKlMn"
+
+    body = client.post(f"/reviews/{rid}/draft", json={"text": text}).json()
+
+    assert body["status"] == "scanned"
+    assert [(h["type"], h["match"]) for h in body["scan"]] == [
+        ("private_ip", "10.12.3.4"),
+        ("internal_path", "/nfs/orbit/"),
+        ("token", "hf_AbCdEf1234567890GhIjKlMn"),
+    ]
+    assert body["events"][-1]["detail"] == "3 hits"
 
 
 def test_concurrent_creates_get_unique_ids(tmp_path):
