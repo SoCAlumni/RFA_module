@@ -59,24 +59,6 @@ components:
       required: [question]
       properties:
         question: { type: string }
-        requester_role:
-          type: string
-          description: 누가 묻는지 (press 등). 실무대장이 응답 범위를 줄이는 데 쓸 수 있음(선택)
-        channel:
-          type: string
-          enum: [public, internal]
-          description: 답변이 나갈 채널(선택)
-    KnowledgeEntry:
-      type: object
-      required: [id, title, summary, task_id, updated_at]
-      properties:
-        id: { type: string, description: 실무대장 내부 식별자 }
-        title: { type: string }
-        summary: { type: string }
-        task_id: { type: string }
-        tags: { type: array, items: { type: string } }
-        updated_at: { type: string, format: date }
-        source: { type: string, enum: [note, web, inference] }
     KnowledgeResult:
       type: object
       required: [task_id, answer, confidence, sources]
@@ -86,5 +68,5 @@ components:
         confidence: { type: number, minimum: 0, maximum: 1 }
         sources:
           type: array
-          description: answer 의 근거. editor 근거 대조와 censor 출처 추적에 필수
-          items: { $ref: "#/components/schemas/KnowledgeEntry" }
+          description: answer 의 근거를 한 줄씩. editor 근거 대조와 censor 출처 추적에 쓴다. 없으면 []
+          items: { type: string, examples: ["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"] }

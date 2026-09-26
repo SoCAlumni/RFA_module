@@ -1,7 +1,6 @@
 """모듈 간 계약의 데이터 모델 (contracts/*.openapi.yaml 과 1:1).
 
-pydantic v2. 필드 이름은 팀 통합을 쉽게 하려고 sr-agent-dashboard 의
-KnowledgeEntry / Project 타입 어휘를 따른다.
+pydantic v2.
 """
 
 from __future__ import annotations
@@ -25,27 +24,11 @@ class Channel(StrEnum):
     INTERNAL = "internal"
 
 
-class KnowledgeSource(StrEnum):
-    NOTE = "note"
-    WEB = "web"
-    INFERENCE = "inference"
-
-
-class KnowledgeEntry(BaseModel):
-    id: str
-    title: str
-    summary: str
-    task_id: str
-    tags: list[str] = Field(default_factory=list)
-    updated_at: date
-    source: KnowledgeSource | None = None
-
-
 class KnowledgeResult(BaseModel):
     task_id: str
     answer: str
     confidence: Confidence
-    sources: list[KnowledgeEntry] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list, description="근거 한 줄씩")
 
 
 class TaskInfo(BaseModel):

@@ -9,20 +9,9 @@
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
 | GET | `/tasks` | — | `[{id, name, description, updated_at}]` 지금 살아 있는 task 목록 (동적) |
-| POST | `/tasks/{task_id}/ask` | `{question, requester_role: "press", channel}` | `{answer, confidence, sources: KnowledgeEntry[]}` |
+| POST | `/tasks/{task_id}/ask` | `{question}` | `{task_id, answer, confidence, sources: string[]}` |
 
-```json
-KnowledgeEntry {
-  "id": "triv3/progress-2026-09.md",
-  "title": "TRIV3 9월 진행 현황",
-  "summary": "...",
-  "task_id": "triv3",
-  "tags": ["benchmark", "quantization"],
-  "updated_at": "2026-09-24",
-  "source": "note|web|inference"
-}
-```
-(필드 이름은 sr-agent-dashboard `data.ts`의 `KnowledgeEntry`에서 차용해 민섭님 쪽과 맞추기 쉽게 함.)
+`sources`는 근거를 한 줄씩 적은 문자열 배열이다 (예: `["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"]`). 근거가 없으면 `[]`.
 
 설계 의도: "DB 검색"이 아니라 **"task supervisor에게 질문"**. 뒤에서 task 에이전트가 동적으로 생성되든 토론을 하든, 호출자는 answer와 sources만 받는다 (sub-agent as a tool). `sources`는 editor의 근거 대조와 censor의 출처 추적에 필요하므로 필수.
 
@@ -30,7 +19,7 @@ KnowledgeEntry {
 
 - `data/knowledge/<task_id>/_task.yaml`: `{name, description}` → `/tasks`
 - `data/knowledge/<task_id>/*.md`: 지식 문서. frontmatter `{title, tags, updated_at}`
-- `ask`: 질문과 각 md의 키워드 겹침으로 상위 k=3 선택 → 본문을 이어 붙여 `answer` (LLM 없이 요약 문단 그대로). `confidence`는 겹침 비율.
+- `ask`: 질문과 각 md의 키워드 겹침으로 상위 k=3 선택 → 본문을 이어 붙여 `answer` (LLM 없이 요약 문단 그대로). `confidence`는 겹침 비율. 선택 문서마다 `"제목: 요약"` 한 줄을 `sources`에.
 - LLM을 쓰지 않는 이유: stub은 계약 확인용이고, 데모에서 기밀이 "그대로" 초안에 흘러 들어가야 censor가 거르는 장면이 나온다.
 
 데모용 stub 데이터(9/26):
@@ -72,5 +61,4 @@ data/knowledge/<task_id>/_task.yaml, *.md
 
 ## 미정
 
-- `requester_role`/`channel`을 실무대장이 써서 응답 범위를 줄일지(예: public 요청엔 internal 노트 제외). 민섭님과 합의 필요. 계약에는 optional로 넣어 둔다.
 - 실무대장 주소가 샌드박스 안일지 호스트일지.

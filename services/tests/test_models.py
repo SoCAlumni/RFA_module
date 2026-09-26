@@ -8,7 +8,6 @@ from rfa_common.models import (
     EditDecision,
     EditVerdict,
     Event,
-    KnowledgeEntry,
     KnowledgeResult,
     Mention,
     ReasonAction,
@@ -25,26 +24,18 @@ from rfa_common.models import (
 NOW = datetime(2026, 9, 26, 12, 0, tzinfo=UTC)
 
 
-def make_entry() -> KnowledgeEntry:
-    return KnowledgeEntry(
-        id="triv3/progress-2026-09.md",
-        title="TRIV3 9월 진행 현황",
-        summary="INT4 이후 소폭 하락",
-        task_id="triv3",
-        tags=["benchmark"],
-        updated_at=date(2026, 9, 24),
-    )
-
-
-def test_knowledge_entry_defaults():
-    entry = make_entry()
-    assert entry.source is None
-    assert entry.tags == ["benchmark"]
-
-
 def test_knowledge_result_roundtrip():
-    result = KnowledgeResult(task_id="triv3", answer="...", confidence=0.6, sources=[make_entry()])
+    result = KnowledgeResult(
+        task_id="triv3",
+        answer="...",
+        confidence=0.6,
+        sources=["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"],
+    )
     assert KnowledgeResult.model_validate(result.model_dump()) == result
+
+
+def test_knowledge_result_sources_default_empty():
+    assert KnowledgeResult(task_id="triv3", answer="...", confidence=0.6).sources == []
 
 
 @pytest.mark.parametrize("confidence", [-0.1, 1.1])
