@@ -6,7 +6,7 @@ tags: [benchmark, quantization, progress]
 ---
 # ORBIT 9월 진행 현황
 
-Nimbus2 0.6B를 INT4로 양자화해 ORBIT 벤치마크를 돌렸다. EM가 FP16 대비 0.5%p 하락했고,
+Nimbus2 0.6B를 INT4로 양자화해 ORBIT 벤치마크를 돌렸다. EM이 FP16 대비 0.5%p 하락했고,
 지연은 평균 38ms에서 27ms로 줄었다. 하락 폭이 목표(0.3%p 이내)를 넘어서 QAT를 붙이는 방향으로 보완 중이다.
 
 다음 버전 릴리즈는 11/3로 잡혀 있다. 릴리즈 전까지 QAT 결과가 나와야 한다.
