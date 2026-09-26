@@ -11,14 +11,14 @@
 | GET | `/tasks` | — | `[{id, name, description, updated_at}]` 지금 살아 있는 task 목록 (동적) |
 | POST | `/tasks/{task_id}/ask` | `{question}` | `{task_id, answer, confidence, sources: string[]}` |
 
-`sources`는 근거를 한 줄씩 적은 문자열 배열이다 (예: `["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"]`). 근거가 없으면 `[]`.
+`sources`는 근거를 한 줄씩 적은 문자열 배열이다 (예: `["ORBIT 9월 진행 현황: INT4 이후 소폭 하락"]`). 근거가 없으면 `[]`.
 
 설계 의도: "DB 검색"이 아니라 **"task supervisor에게 질문"**. 뒤에서 task 에이전트가 동적으로 생성되든 토론을 하든, 호출자는 answer와 sources만 받는다 (sub-agent as a tool). `sources`는 editor의 근거 대조와 censor의 출처 추적에 필요하므로 필수.
 
 ## stub 동작
 
-- `data/knowledge/<task_id>/_task.yaml`: `{name, description}` → `/tasks`
-- `data/knowledge/<task_id>/*.md`: 지식 문서. frontmatter `{title, tags, updated_at}`
+- `data/knowledge/<task_id>/_task.yaml`: `{name, description, updated_at}` → `/tasks`. 이 파일이 없는 폴더는 task가 아님
+- `data/knowledge/<task_id>/*.md`: 지식 문서. frontmatter `{title, updated_at, tags?, summary?}`. summary가 없으면 본문 첫 줄. frontmatter가 없거나 필수 키가 빠진 md는 건너뜀
 - `ask`: 질문과 각 md의 키워드 겹침으로 상위 k=3 선택 → 본문을 이어 붙여 `answer` (LLM 없이 요약 문단 그대로). `confidence`는 겹침 비율. 선택 문서마다 `"제목: 요약"` 한 줄을 `sources`에.
 - LLM을 쓰지 않는 이유: stub은 계약 확인용이고, 데모에서 기밀이 "그대로" 초안에 흘러 들어가야 censor가 거르는 장면이 나온다.
 
@@ -26,9 +26,9 @@
 
 | task | 문서 | 일부러 넣는 기밀 |
 |---|---|---|
-| triv3 | progress-2026-09.md | 미공개 모델명 Gauss4, JGA 0.5%p(official), 11/3 릴리즈(official), GPU pool 10.12.3.4(personal + scanner), `hf_…` 토큰(scanner) |
+| orbit | progress-2026-09.md, regression-notes.md | 미공개 모델명 Nimbus2, EM 0.5%p(official), 11/3 릴리즈(official), GPU pool 10.12.3.4(personal + scanner), `hf_…` 토큰(scanner) |
 | quantization | qat-notes.md | 없음 (대조군) |
-| quest | design.md | 사내 경로 `/nfs/quest/` (scanner) |
+| prism | design.md | 사내 경로 `/nfs/prism/` (scanner) |
 
 ## 파일 구조
 

@@ -3,11 +3,11 @@ name = "rfa-services"
 version = "0.1.0"
 description = "호스트 서비스: 공용 모델, knowledge stub, review, mcp_channels"
 requires-python = ">=3.12"
-dependencies = ["pydantic>=2.7"]
+dependencies = ["pydantic>=2.7", "fastapi>=0.115", "uvicorn>=0.30", "pyyaml>=6.0"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["rfa_common"]
+packages = ["rfa_common", "knowledge_stub"]

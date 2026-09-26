@@ -50,7 +50,7 @@ components:
       type: object
       required: [id, name, description, updated_at]
       properties:
-        id: { type: string, examples: [triv3] }
+        id: { type: string, examples: [orbit] }
         name: { type: string }
         description: { type: string }
         updated_at: { type: string, format: date }
@@ -69,4 +69,4 @@ components:
         sources:
           type: array
           description: answer 의 근거를 한 줄씩. editor 근거 대조와 censor 출처 추적에 쓴다. 없으면 []
-          items: { type: string, examples: ["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"] }
+          items: { type: string, examples: ["ORBIT 9월 진행 현황: INT4 이후 소폭 하락"] }

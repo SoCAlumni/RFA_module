@@ -12,7 +12,7 @@ rfa-services = { workspace = true }
 members = ["services"]
 
 [dependency-groups]
-dev = ["pytest>=8.3", "ruff>=0.6"]
+dev = ["pytest>=8.3", "ruff>=0.6", "httpx2"]
 
 [tool.ruff]
 line-length = 100

@@ -19,7 +19,7 @@
 | Step | 기능 | 상태 |
 |---|---|---|
 | 0 | 초기 커밋 (docs, README, .gitignore) | 완료 |
-| 1 | 스켈레톤 + 계약 + 공용 모델 | |
+| 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
 | 2 | knowledge stub + 데모 데이터 | |
 | 3 | review 코어 (상태기계, reviews API) | |
 | 4 | scanner + policy | |
@@ -95,24 +95,24 @@ services/knowledge_stub/app.py      # GET /tasks, POST /tasks/{id}/ask
 services/knowledge_stub/loader.py   # data/knowledge/<task>/_task.yaml + *.md(frontmatter)
 services/knowledge_stub/rank.py     # 질문·문서 토큰 겹침 점수, 상위 k
 services/tests/test_knowledge_stub.py
-data/knowledge/triv3/_task.yaml, progress-2026-09.md
+data/knowledge/orbit/_task.yaml, progress-2026-09.md
 data/knowledge/quantization/_task.yaml, qat-notes.md
-data/knowledge/quest/_task.yaml, design.md
+data/knowledge/prism/_task.yaml, design.md
 ```
 
 **동작 정의.**
 - `GET /tasks` → `TaskInfo[]` (폴더 스캔, `_task.yaml` 없는 폴더는 무시)
 - `POST /tasks/{id}/ask {question}` → `KnowledgeResult`. 없는 task는 404. 상위 k=3 문서 본문을 이어 붙여 answer, 겹침 비율을 confidence, 선택 문서를 `"제목: 요약"` 문자열로 sources.
-- 데모 데이터에 일부러 넣는 기밀: triv3에 미공개 모델명 `Gauss4`, 수치 `JGA 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; quest에 경로 `/nfs/quest/`. quantization은 깨끗(대조군).
+- 데모 데이터에 일부러 넣는 기밀: orbit에 미공개 모델명 `Nimbus2`, 수치 `EM 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; prism에 경로 `/nfs/prism/`. quantization은 깨끗(대조군).
 - 데이터 경로는 env `RFA_DATA_DIR`(기본 `./data`).
 
-**테스트.** `/tasks` 3건, `ask`가 triv3 질문에 progress 문서를 sources로 반환, 없는 task 404, frontmatter 누락 md는 건너뜀.
+**테스트.** `/tasks` 3건, `ask`가 orbit 질문에 progress 문서를 sources로 반환, 없는 task 404, frontmatter 누락 md는 건너뜀.
 
 **완료 조건.**
 ```bash
 uv run uvicorn knowledge_stub.app:app --port 8791 &
 curl -s localhost:8791/tasks | jq
-curl -s -X POST localhost:8791/tasks/triv3/ask -H 'content-type: application/json' -d '{"question":"TRIV3 벤치마크 진행 어때?"}' | jq
+curl -s -X POST localhost:8791/tasks/orbit/ask -H 'content-type: application/json' -d '{"question":"ORBIT 벤치마크 진행 어때?"}' | jq
 uv run pytest
 ```
 

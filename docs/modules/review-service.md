@@ -30,8 +30,8 @@
 {
   "id": 12, "status": "reviewed", "channel": "public",
   "target": "zetwhite/rfa-test#34", "source_url": "...", "requester": "someone",
-  "question": "TRIV3 벤치마크 진행 어때?",
-  "knowledge": {"task_id": "triv3", "answer": "...", "sources": [...]},
+  "question": "ORBIT 벤치마크 진행 어때?",
+  "knowledge": {"task_id": "orbit", "answer": "...", "sources": [...]},
   "draft": "...", "edit_log": [{"round": 1, "verdict": "revise", "notes": "..."}, {"round": 2, "verdict": "pass"}],
   "scan": [{"type": "private_ip", "match": "10.12.3.4", "span": [88, 97]}],
   "verdict": {"verdict": "redact", "redacted_body": "...", "reasons": [{"rule": "official:release-date", "span": "11/3 릴리즈"}]},

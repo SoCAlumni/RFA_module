@@ -26,27 +26,27 @@ NOW = datetime(2026, 9, 26, 12, 0, tzinfo=UTC)
 
 def test_knowledge_result_roundtrip():
     result = KnowledgeResult(
-        task_id="triv3",
+        task_id="orbit",
         answer="...",
         confidence=0.6,
-        sources=["TRIV3 9월 진행 현황: INT4 이후 소폭 하락"],
+        sources=["ORBIT 9월 진행 현황: INT4 이후 소폭 하락"],
     )
     assert KnowledgeResult.model_validate(result.model_dump()) == result
 
 
 def test_knowledge_result_sources_default_empty():
-    assert KnowledgeResult(task_id="triv3", answer="...", confidence=0.6).sources == []
+    assert KnowledgeResult(task_id="orbit", answer="...", confidence=0.6).sources == []
 
 
 @pytest.mark.parametrize("confidence", [-0.1, 1.1])
 def test_knowledge_result_rejects_confidence_out_of_range(confidence):
     with pytest.raises(ValidationError):
-        KnowledgeResult(task_id="triv3", answer="...", confidence=confidence)
+        KnowledgeResult(task_id="orbit", answer="...", confidence=confidence)
 
 
 def test_task_info():
-    info = TaskInfo(id="triv3", name="TRIV3", description="벤치마크", updated_at=date(2026, 9, 24))
-    assert info.id == "triv3"
+    info = TaskInfo(id="orbit", name="ORBIT", description="벤치마크", updated_at=date(2026, 9, 24))
+    assert info.id == "orbit"
 
 
 def make_mention(target: str = "zetwhite/rfa-test#34") -> Mention:
@@ -54,7 +54,7 @@ def make_mention(target: str = "zetwhite/rfa-test#34") -> Mention:
         channel=Channel.PUBLIC,
         target=target,
         author="someone",
-        text="TRIV3 벤치마크 진행 어때?",
+        text="ORBIT 벤치마크 진행 어때?",
         url="https://github.com/zetwhite/rfa-test/issues/34",
         created_at=NOW,
     )
@@ -113,7 +113,7 @@ def test_review_minimal_and_full():
         target="zetwhite/rfa-test#34",
         source_url="https://github.com/zetwhite/rfa-test/issues/34",
         requester="someone",
-        question="TRIV3 벤치마크 진행 어때?",
+        question="ORBIT 벤치마크 진행 어때?",
         events=[Event(at=NOW, who="intake", what="opened")],
     )
     assert review.knowledge is None and review.edit_log == [] and review.scan == []
