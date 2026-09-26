@@ -48,7 +48,7 @@ flowchart LR
 | 기밀검토 2-A Internal / 2-B Public | censor_internal / censor_public 노드, 정책 스코프 분리 |
 | Human in the loop로 기밀 기준 관리 | 거절 사유 → feedback.jsonl → censor few-shot |
 
-## 3. 예시 흐름: "@zetwhite TRIV3 벤치마크 진행 어때?"
+## 3. 예시 흐름: "@zetwhite ORBIT 벤치마크 진행 어때?"
 
 | # | 어디 | 누가 판단 | 코드 | 결과 |
 |---|---|---|---|---|
@@ -59,7 +59,7 @@ flowchart LR
 | 5 | 샌드박스 | LLM (public-desk) | AGENTS.md | `workflow.run(mention)` 호출 |
 | 6 | 샌드박스 | 코드 | `workflow/.../mcp_entry.py` | 그래프 실행 시작 |
 | 7 | 샌드박스→호스트 | 코드 (intake) | `nodes/intake.py` → `POST /reviews` | review #12 `opened`. **알람 등장** |
-| 8 | 샌드박스→호스트 | LLM(task 선택) + 코드 | `nodes/knowledge.py` → `GET /tasks`, `POST /tasks/triv3/ask` | answer + sources. `knowledge_ready` |
+| 8 | 샌드박스→호스트 | LLM(task 선택) + 코드 | `nodes/knowledge.py` → `GET /tasks`, `POST /tasks/orbit/ask` | answer + sources. `knowledge_ready` |
 | 9 | 샌드박스 | LLM (writer) | `nodes/press.py`, `prompts/writer.md` | 초안 |
 | 10 | 샌드박스 | LLM (editor) | `prompts/editor.md` | pass / revise(+notes). revise면 9로, 최대 2회 |
 | 11 | 샌드박스→호스트 | 코드 (submit) | `POST /reviews/12/draft` → `scanner.py` 자동 | `drafted` → `scanned`. 스캔 결과 기록 |
@@ -70,7 +70,7 @@ flowchart LR
 
 거절 시: 15 대신 `rejected`, 사유가 `data/policy/feedback.jsonl`에 추가되어 다음 12번에 few-shot으로 주입.
 
-데모용 stub 지식(`data/knowledge/triv3/`)에는 일부러 다음을 섞는다: 미공개 릴리즈 일자(official), 몰래 쓰는 GPU pool(personal), 내부 IP·토큰(scanner). 12번에서 이들이 각각 어떤 기준으로 걸리는지 결재 웹에 보이게 한다.
+데모용 stub 지식(`data/knowledge/orbit/`)에는 일부러 다음을 섞는다: 미공개 릴리즈 일자(official), 몰래 쓰는 GPU pool(personal), 내부 IP·토큰(scanner). 12번에서 이들이 각각 어떤 기준으로 걸리는지 결재 웹에 보이게 한다.
 
 ## 4. Tool call 정책표 (다영님 OpenShell 권한 설정용)
 

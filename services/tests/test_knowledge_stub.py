@@ -17,16 +17,16 @@ def client() -> TestClient:
 
 def test_list_tasks_returns_three_demo_tasks(client):
     ids = [t["id"] for t in client.get("/tasks").json()]
-    assert ids == ["quantization", "quest", "triv3"]
+    assert ids == ["orbit", "quantization", "quest"]
 
 
-def test_ask_triv3_returns_progress_doc_as_source(client):
-    res = client.post("/tasks/triv3/ask", json={"question": "TRIV3 벤치마크 진행 어때?"})
+def test_ask_orbit_returns_progress_doc_as_source(client):
+    res = client.post("/tasks/orbit/ask", json={"question": "ORBIT 벤치마크 진행 어때?"})
     assert res.status_code == 200
     body = res.json()
-    assert body["task_id"] == "triv3"
-    assert body["sources"][0].startswith("TRIV3 9월 진행 현황: ")
-    assert "Gauss4" in body["answer"]  # 기밀이 그대로 흘러야 censor 데모가 된다
+    assert body["task_id"] == "orbit"
+    assert body["sources"][0].startswith("ORBIT 9월 진행 현황: ")
+    assert "Nimbus2" in body["answer"]  # 기밀이 그대로 흘러야 censor 데모가 된다
     assert 0 < body["confidence"] <= 1
 
 
@@ -63,19 +63,19 @@ def test_loader_skips_docs_without_frontmatter_and_dirs_without_task_file(tmp_pa
 
 def test_tokenize_and_score_use_substring_match_for_korean_particles():
     doc = Doc(
-        title="벤치마크는 진행 중", summary="", updated_at=date(2026, 9, 1), body="TRIV3 결과"
+        title="벤치마크는 진행 중", summary="", updated_at=date(2026, 9, 1), body="ORBIT 결과"
     )
-    tokens = tokenize("TRIV3 벤치마크 진행 어때?")
-    assert tokens == ["triv3", "벤치마크", "어때", "진행"]
+    tokens = tokenize("ORBIT 벤치마크 진행 어때?")
+    assert tokens == ["orbit", "벤치마크", "어때", "진행"]
     assert score(tokens, doc) == pytest.approx(3 / 4)
     assert score([], doc) == 0.0
 
 
 def test_top_docs_orders_by_score_then_filters_zero():
     a = Doc(title="a", summary="", updated_at=date(2026, 9, 1), body="양자화 결과")
-    b = Doc(title="b", summary="", updated_at=date(2026, 9, 2), body="양자화 결과 JGA")
+    b = Doc(title="b", summary="", updated_at=date(2026, 9, 2), body="양자화 결과 EM")
     c = Doc(title="c", summary="", updated_at=date(2026, 9, 3), body="무관")
-    picked = top_docs("양자화 JGA 결과", [a, b, c], k=3)
+    picked = top_docs("양자화 EM 결과", [a, b, c], k=3)
     assert [d.title for d, _ in picked] == ["b", "a"]
     assert picked[0][1] == 1.0
     # 동점이면 최신 문서 먼저, k 로 잘림
