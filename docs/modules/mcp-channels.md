@@ -71,7 +71,7 @@ services/review/publisher.py  # GithubPublisher: clearance 검증 → create_com
 - [x] get_thread
 - [x] post_comment(`create_comment`, MCP 미노출) + GithubPublisher의 clearance 검증 + 테스트
 - [x] bearer 검사, streamable-http(`mcp` 2.x `MCPServer`, stateless + JSON 응답), Host 허용 목록 `RFA_MCP_ALLOWED_HOSTS`
-- [ ] 테스트 레포 `zetwhite/rfa-test` 준비, 이슈 하나 생성
+- [x] 테스트 레포 `zetwhite/RFA_test`에서 실제 확인: 멘션 감지 → 스레드 읽기 → 승인 → 댓글 게시
 
 ## 미정
 
