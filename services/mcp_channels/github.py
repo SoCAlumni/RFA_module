@@ -5,6 +5,10 @@
 
 - list_mentions / get_thread : 읽기. MCP 툴로 노출 (server.py)
 - create_comment             : 쓰기. MCP 로 노출 안 함. GithubPublisher 가 clearance 검증 후 호출
+
+자기 답글 무시: 이 시스템이 게시하는 댓글은 GitHub 에 login 본인 이름으로 달린다. 그 댓글에 다시
+반응하지 않도록 게시할 때 화면에 안 보이는 BOT_MARKER 를 붙이고, 멘션을 찾을 때 그 글만 건너뛴다.
+(본인이 직접 쓴 @login 은 멘션으로 인정한다 → 혼자서도 비서를 부를 수 있다)
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ API_URL = "https://api.github.com"
 PAGE_SIZE = 100
 THREAD_COMMENTS = 10
 DEFAULT_LOOKBACK = timedelta(hours=24)
+BOT_MARKER = "<!-- rfa-bot -->"
 SEEN_LIMIT = 500
 
 
@@ -106,9 +111,13 @@ class GithubClient:
         )
 
     def create_comment(self, target: str, body: str) -> str:
-        """댓글을 달고 html_url 을 돌려준다. 호출 전에 반드시 clearance 를 검증할 것."""
+        """댓글을 달고 html_url 을 돌려준다. 호출 전에 반드시 clearance 를 검증할 것.
+
+        본문 끝에 BOT_MARKER 를 붙여 이후 멘션 검색에서 자기 답글을 거른다.
+        """
         repo, number = parse_target(target)
-        res = self._http.post(f"/repos/{repo}/issues/{number}/comments", json={"body": body})
+        marked = f"{body}\n\n{BOT_MARKER}"
+        res = self._http.post(f"/repos/{repo}/issues/{number}/comments", json={"body": marked})
         if res.is_error:
             raise GithubError(f"POST comment {target}: {res.status_code} {res.text[:200]}")
         return res.json()["html_url"]
@@ -125,7 +134,7 @@ def _mentions(login: str) -> re.Pattern[str]:
 def find_mentions(
     login: str, repo: str, issues: list[dict], comments: list[dict], since: datetime
 ) -> list[Mention]:
-    """since 이후 새로 쓰인 이슈 본문/댓글 중 @login 이 있고 login 본인이 쓴 게 아닌 것."""
+    """since 이후 새로 쓰인 이슈 본문/댓글 중 @login 이 있고, 이 시스템이 게시한 답글이 아닌 것."""
     pattern = _mentions(login)
     found: list[Mention] = []
 
@@ -133,7 +142,7 @@ def find_mentions(
         created = datetime.fromisoformat(item["created_at"].replace("Z", "+00:00"))
         author = item["user"]["login"]
         body = item.get("body") or ""
-        if created < since or author.lower() == login.lower() or not pattern.search(body):
+        if created < since or BOT_MARKER in body or not pattern.search(body):
             return
         found.append(
             Mention(

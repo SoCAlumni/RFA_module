@@ -5,6 +5,7 @@ import pytest
 from fake_github import REPO, FakeGithub, comment, issue
 from fastapi.testclient import TestClient
 from mcp_channels.github import (
+    BOT_MARKER,
     GithubClient,
     GithubConfig,
     GithubError,
@@ -27,7 +28,6 @@ def test_find_mentions_rules():
         issue(1, "@zetwhite 이슈 본문에서 부름"),
         issue(2, "@zetwhitex 는 다른 사람"),
         issue(3, "@ZetWhite 대소문자 무시", created="2026-09-26T08:00:00Z"),  # since 이전
-        issue(4, "@zetwhite 본인이 쓴 글", author="zetwhite"),
     ]
     comments = [
         comment(10, 7, "hi @zetwhite, ORBIT 진행 어때?"),
@@ -43,6 +43,16 @@ def test_find_mentions_rules():
     assert found[1].text == "hi @zetwhite, ORBIT 진행 어때?"
     assert str(found[1].url).endswith("#issuecomment-10")
     assert found[0].channel == "public"
+
+
+def test_self_mention_counts_but_own_bot_reply_does_not():
+    """본인이 쓴 @login 은 인정(혼자 데모 가능), 이 시스템이 단 답글은 무시(자기 반응 방지)."""
+    issues = [issue(4, "@zetwhite 비서야 ORBIT 정리해줘", author="zetwhite")]
+    comments = [
+        comment(20, 4, f"(담당: @zetwhite) 검토 중이에요.\n\n{BOT_MARKER}", author="zetwhite"),
+    ]
+    found = find_mentions("zetwhite", REPO, issues, comments, SINCE)
+    assert [(m.target, m.author) for m in found] == [(f"{REPO}#4", "zetwhite")]
 
 
 def test_tracker_returns_each_mention_once_and_advances_since(tmp_path):
@@ -101,7 +111,22 @@ def test_github_publisher_verifies_clearance_before_calling_api():
 
     url = pub.publish(target, body, sign("k", 1, target, body))
     assert url.endswith("#issuecomment-999")
-    assert fake.posted == [(target, body)]
+    assert fake.posted == [(target, f"{body}\n\n{BOT_MARKER}")]
+
+
+def test_posted_reply_is_not_picked_up_as_new_mention(tmp_path):
+    """게시 → 다음 폴링: 우리가 단 답글(@login 포함)이 새 멘션으로 돌아오지 않는다."""
+    fake = FakeGithub()
+    client = GithubClient("t", transport=fake.transport())
+    target = f"{REPO}#7"
+    reply = "(담당: @zetwhite) 보완 검토 중이에요."
+    GithubPublisher(clearance_key="k", client=client).publish(
+        target, reply, sign("k", 1, target, reply)
+    )
+    ((_, posted_body),) = fake.posted
+    fake.comments = [comment(30, 7, posted_body, author="zetwhite")]
+
+    assert MentionTracker(tmp_path / "seen.json").poll(client, CONFIG, SINCE) == []
 
 
 def test_github_publisher_wraps_api_failure():
@@ -212,4 +237,4 @@ def test_approve_posts_final_body_to_github(tmp_path):
 
     assert res["status"] == "posted"
     assert res["posted_url"].endswith("#issuecomment-999")
-    assert fake.posted == [(OPEN["target"], REDACT["redacted_body"])]
+    assert fake.posted == [(OPEN["target"], f"{REDACT['redacted_body']}\n\n{BOT_MARKER}")]

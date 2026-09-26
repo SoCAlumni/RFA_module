@@ -10,10 +10,10 @@
 
 | 이름 | 노출 | 종류 | 결재 | 설명 |
 |---|---|---|---|---|
-| `list_mentions(since?)` | MCP | 읽기 | 불필요 | 감시 레포(`RFA_GITHUB_REPOS`)의 `GET /repos/{r}/issues`, `/issues/comments`(since 이후)에서 `@RFA_GITHUB_LOGIN`을 찾음. 본인이 쓴 글·since 이전 글 제외, 대소문자 무시. 한 번 돌려준 멘션은 `data/state/mentions_seen.json`에 기록해 다시 안 줌(at-most-once). `since` 생략 시 마지막 확인 시각, 처음이면 24시간 전 |
+| `list_mentions(since?)` | MCP | 읽기 | 불필요 | 감시 레포(`RFA_GITHUB_REPOS`)의 `GET /repos/{r}/issues`, `/issues/comments`(since 이후)에서 `@RFA_GITHUB_LOGIN`을 찾음. since 이전 글과 **이 시스템이 게시한 답글**(`<!-- rfa-bot -->` 표시)은 제외, 대소문자 무시. 본인이 직접 쓴 `@login`은 인정(혼자서도 비서를 부를 수 있고 데모가 쉬움). 한 번 돌려준 멘션은 `data/state/mentions_seen.json`에 기록해 다시 안 줌(at-most-once). `since` 생략 시 마지막 확인 시각, 처음이면 24시간 전 |
 | `get_thread(target)` | MCP | 읽기 | 불필요 | 이슈/PR 본문 + 최근 댓글 N개 |
 | `get_diff(pr)` | MCP | 읽기 | 불필요 | 9/28 코드리뷰 대비, 오늘은 미구현 |
-| `post_comment(target, body, clearance)` | **내부 함수만** | 쓰기 | **필수** | `clearance.verify` 통과 시 `POST /repos/{o}/{r}/issues/{n}/comments` |
+| `post_comment(target, body, clearance)` | **내부 함수만** | 쓰기 | **필수** | `clearance.verify` 통과 시 `POST /repos/{o}/{r}/issues/{n}/comments`. 본문 끝에 화면에 안 보이는 `<!-- rfa-bot -->`를 붙여, 이 답글에 `@login`이 있어도 다음 폴링에서 멘션으로 잡히지 않게 한다 |
 
 `target` 형식: `owner/repo#number`.
 
