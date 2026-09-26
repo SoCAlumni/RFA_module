@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import threading
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -17,11 +18,12 @@ from rfa_common.models import Event, OpenReviewRequest, Review, ReviewStatus
 
 S = ReviewStatus
 
-# to 상태 → 허용되는 from 상태들. Step 4 에서 scanned, Step 5 에서 approved/rejected/posted 추가.
+# to 상태 → 허용되는 from 상태들. Step 5 에서 approved/rejected/posted 추가.
 ALLOWED: dict[ReviewStatus, frozenset[ReviewStatus]] = {
     S.KNOWLEDGE_READY: frozenset({S.OPENED}),
     S.DRAFTED: frozenset({S.KNOWLEDGE_READY}),
-    S.REVIEWED: frozenset({S.DRAFTED}),
+    S.SCANNED: frozenset({S.DRAFTED}),
+    S.REVIEWED: frozenset({S.SCANNED}),
     S.NEEDS_HUMAN: frozenset({S.OPENED, S.KNOWLEDGE_READY, S.DRAFTED, S.SCANNED, S.REVIEWED}),
 }
 
@@ -37,6 +39,16 @@ class InvalidTransition(Exception):
         super().__init__(f"cannot move from {current} to {to}")
         self.current = current
         self.to = to
+
+
+@dataclass(frozen=True)
+class Step:
+    """상태 전이 한 번. mutate 는 전이 직전에 문서를 고친다."""
+
+    to: ReviewStatus
+    who: str
+    detail: str | None = None
+    mutate: Callable[[Review], None] | None = None
 
 
 def _now() -> datetime:
@@ -70,24 +82,22 @@ class ReviewStore:
         reviews = [self.get(i) for i in self._ids()]
         return [r for r in reviews if status is None or r.status == status]
 
-    def advance(
-        self,
-        review_id: int,
-        to: ReviewStatus,
-        *,
-        who: str,
-        detail: str | None = None,
-        mutate: Callable[[Review], None] | None = None,
-    ) -> Review:
-        """상태를 to 로 옮긴다. 허용되지 않은 전이면 InvalidTransition, 파일은 그대로."""
+    def advance(self, review_id: int, *steps: Step) -> Review:
+        """steps 를 차례로 적용하고 한 번에 저장한다.
+
+        하나라도 허용되지 않은 전이면 InvalidTransition 을 던지고 파일은 그대로 둔다.
+        """
         with self._lock:
             review = self.get(review_id)
-            if review.status not in ALLOWED.get(to, frozenset()):
-                raise InvalidTransition(review.status, to)
-            if mutate is not None:
-                mutate(review)
-            review.status = to
-            review.events.append(Event(at=_now(), who=who, what=to, detail=detail))
+            for step in steps:
+                if review.status not in ALLOWED.get(step.to, frozenset()):
+                    raise InvalidTransition(review.status, step.to)
+                if step.mutate is not None:
+                    step.mutate(review)
+                review.status = step.to
+                review.events.append(
+                    Event(at=_now(), who=step.who, what=step.to, detail=step.detail)
+                )
             self._write(review)
             return review
 

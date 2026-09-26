@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from review.app import create_app
-from review.store import ReviewStore
-from rfa_common.models import OpenReviewRequest
+from review.store import InvalidTransition, ReviewStore, Step
+from rfa_common.models import KnowledgeResult, OpenReviewRequest, ReviewStatus
 
 OPEN = {
     "channel": "public",
@@ -64,8 +64,9 @@ def test_happy_path_opened_to_reviewed(client):
     assert r.json()["knowledge"]["task_id"] == "orbit"
 
     r = client.post(f"/reviews/{rid}/draft", json=DRAFT, headers=as_actor("press"))
-    assert r.json()["status"] == "drafted"
+    assert r.json()["status"] == "scanned"
     assert r.json()["draft"] == DRAFT["text"]
+    assert r.json()["scan"] == []
     assert [e["verdict"] for e in r.json()["edit_log"]] == ["revise", "pass"]
 
     r = client.post(f"/reviews/{rid}/verdict", json=REDACT, headers=as_actor("censor_public"))
@@ -76,6 +77,7 @@ def test_happy_path_opened_to_reviewed(client):
         ("intake", "opened", None),
         ("knowledge", "knowledge_ready", "orbit"),
         ("press", "drafted", None),
+        ("scanner", "scanned", "0 hits"),
         ("censor_public", "reviewed", "redact"),
     ]
     assert client.get(f"/reviews/{rid}").json() == body
@@ -105,7 +107,8 @@ def test_actor_defaults_to_unknown(client):
         ([], "verdict", REDACT, "opened", "reviewed"),
         (["knowledge"], "knowledge", KNOWLEDGE, "knowledge_ready", "knowledge_ready"),
         (["knowledge"], "verdict", REDACT, "knowledge_ready", "reviewed"),
-        (["knowledge", "draft"], "draft", DRAFT, "drafted", "drafted"),
+        (["knowledge", "draft"], "draft", DRAFT, "scanned", "drafted"),
+        (["knowledge", "draft"], "knowledge", KNOWLEDGE, "scanned", "knowledge_ready"),
         (["knowledge", "draft", "verdict"], "verdict", REDACT, "reviewed", "reviewed"),
     ],
 )
@@ -160,7 +163,7 @@ def test_list_filters_by_status(client):
     b = to_drafted(client)
     all_ids = [r["id"] for r in client.get("/reviews").json()]
     assert all_ids == [a, b]
-    assert [r["id"] for r in client.get("/reviews?status=drafted").json()] == [b]
+    assert [r["id"] for r in client.get("/reviews?status=scanned").json()] == [b]
     assert client.get("/reviews?status=posted").json() == []
     assert client.get("/reviews?status=bogus").status_code == 422
 
@@ -174,6 +177,63 @@ def test_state_survives_restart_and_ids_continue(tmp_path):
     assert second.get(f"/reviews/{rid}").json()["status"] == "knowledge_ready"
     assert second.post("/reviews", json=OPEN).json()["id"] == rid + 1
     assert list((tmp_path / "state").glob("*.tmp")) == []
+
+
+def test_draft_is_scanned_with_repo_rules(tmp_path):
+    (tmp_path / "policy").mkdir()
+    (tmp_path / "policy" / "internal_paths.txt").write_text("/nfs/\n", encoding="utf-8")
+    client = TestClient(create_app(tmp_path))
+    rid = open_review(client)
+    client.post(f"/reviews/{rid}/knowledge", json=KNOWLEDGE)
+    text = "평가는 10.12.3.4 에서, 결과는 /nfs/orbit/ 에. 토큰 hf_AbCdEf1234567890GhIjKlMn"
+
+    body = client.post(f"/reviews/{rid}/draft", json={"text": text}).json()
+
+    assert body["status"] == "scanned"
+    assert [(h["type"], h["match"]) for h in body["scan"]] == [
+        ("private_ip", "10.12.3.4"),
+        ("internal_path", "/nfs/orbit/"),
+        ("token", "hf_AbCdEf1234567890GhIjKlMn"),
+    ]
+    assert body["events"][-1]["detail"] == "3 hits"
+
+
+def test_advance_saves_nothing_when_a_later_step_fails(tmp_path):
+    """첫 Step 은 허용되어 문서를 고치지만 두 번째 Step 이 막히면, 파일은 한 글자도 안 바뀐다."""
+    store = ReviewStore(tmp_path)
+    rid = store.create(OpenReviewRequest.model_validate(OPEN), who="intake").id
+    store.advance(
+        rid,
+        Step(
+            ReviewStatus.KNOWLEDGE_READY,
+            "knowledge",
+            mutate=lambda r: setattr(r, "knowledge", KnowledgeResult.model_validate(KNOWLEDGE)),
+        ),
+    )
+    path = tmp_path / f"review-{rid}.json"
+    before_bytes = path.read_bytes()
+    before = store.get(rid)
+
+    def put_draft(r):
+        r.draft = "새 초안"
+
+    with pytest.raises(InvalidTransition) as exc:
+        store.advance(
+            rid,
+            # 허용: knowledge_ready → drafted (문서의 draft 를 고침)
+            Step(ReviewStatus.DRAFTED, "press", mutate=put_draft),
+            # 거부: drafted → reviewed (scanned 를 거쳐야 함)
+            Step(ReviewStatus.REVIEWED, "censor"),
+        )
+
+    assert (exc.value.current, exc.value.to) == (ReviewStatus.DRAFTED, ReviewStatus.REVIEWED)
+    assert path.read_bytes() == before_bytes
+    after = store.get(rid)
+    assert after == before
+    assert after.status == ReviewStatus.KNOWLEDGE_READY
+    assert after.draft is None
+    assert [e.what for e in after.events] == ["opened", "knowledge_ready"]
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_concurrent_creates_get_unique_ids(tmp_path):

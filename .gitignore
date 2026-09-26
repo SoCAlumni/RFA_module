@@ -8,7 +8,8 @@ reference/
 certs/
 
 # 런타임 상태
-data/state/
+data/**/state/
+data/policy/feedback.jsonl
 
 # Python
 __pycache__/

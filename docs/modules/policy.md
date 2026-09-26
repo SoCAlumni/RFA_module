@@ -11,10 +11,10 @@ data/policy/
 ├─ public/
 │  ├─ official.md      # 대외 공식 기준 (예: 미공개 릴리즈 일자, 미공개 모델명, 내부 벤치마크 수치)
 │  └─ personal.md      # 사용자 개인 기준 (예: 몰래 쓰는 GPU pool 언급 금지)
-├─ internal/
+├─ internal/           # (Step 12+) 없으면 GET /policy/internal 은 404
 │  ├─ official.md      # 사업부/회사 내 기준 (public보다 느슨)
-│  └─ personal.md
-├─ feedback.jsonl      # 사람 거절/승인 사례 (scope 필드로 구분)
+│  └─ personal.md      # 없으면 빈 문자열
+├─ feedback.jsonl      # 사람 거절/승인 사례 (scope 필드로 구분). 런타임에 쌓이므로 gitignore
 ├─ internal_hosts.txt  # 스캐너용 사내 호스트/도메인
 └─ internal_paths.txt  # 스캐너용 사내 경로 접두사
 ```
@@ -39,7 +39,7 @@ data/policy/
 {"at":"...","scope":"public","review_id":13,"decision":"approve","reason":null}
 ```
 - reject는 전부, approve는 verdict가 redact였던 것만 기록(어떤 삭제가 적절했는지 예시).
-- `GET /policy/public`은 최근 N=10건을 few-shot으로 포함.
+- `GET /policy/public`은 같은 scope 중 reject 먼저, 그 안에서 최신순으로 최대 10건을 few-shot으로 포함. 형식이 깨진 줄은 건너뛴다.
 
 ## censor 프롬프트 주입 형태
 

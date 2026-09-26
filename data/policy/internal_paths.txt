@@ -1,0 +1,4 @@
+# 스캐너가 찾을 사내 경로 접두사. 한 줄에 하나, # 은 주석.
+/nfs/
+/mnt/shared/
+\\fileserver\
