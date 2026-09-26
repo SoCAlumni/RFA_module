@@ -20,7 +20,7 @@
 |---|---|---|
 | 0 | 초기 커밋 (docs, README, .gitignore) | 완료 |
 | 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
-| 2 | knowledge stub + 데모 데이터 | |
+| 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
 | 3 | review 코어 (상태기계, reviews API) | |
 | 4 | scanner + policy | |
 | 5 | clearance + 결재 (approve/reject) | |
@@ -128,8 +128,8 @@ uv run pytest
 ```
 services/review/__init__.py
 services/review/app.py         # 라우트
-services/review/store.py       # data/state/review-<id>.json, next_id, load/save, transition(id, from, to, who, what)
-services/review/errors.py      # InvalidTransition → 409 {error, from, to}
+services/review/store.py       # data/state/review-<id>.json, 전이표 ALLOWED, advance(), ReviewNotFound/InvalidTransition
+services/rfa_common/models.py  # 요청 본문 모델 추가: OpenReviewRequest, DraftRequest, NeedsHumanRequest
 services/tests/test_review_core.py
 ```
 
@@ -137,8 +137,8 @@ services/tests/test_review_core.py
 | 엔드포인트 | 전이 | 본문 |
 |---|---|---|
 | `POST /reviews` | → opened | channel, target, source_url, requester, question |
-| `GET /reviews?status=` | — | 목록(요약 필드) |
-| `GET /reviews/{id}` | — | Review 전체, 없으면 404 |
+| `GET /reviews?status=` | — | Review 목록 (id 순) |
+| `GET /reviews/{id}` | — | Review 전체, 없으면 404 `{error: not_found, id}` |
 | `POST /reviews/{id}/knowledge` | opened → knowledge_ready | KnowledgeResult |
 | `POST /reviews/{id}/draft` | knowledge_ready → drafted | text, edit_log[] (Step 4에서 scanned까지 자동 전이 추가) |
 | `POST /reviews/{id}/verdict` | drafted → reviewed (Step 4 이후 scanned → reviewed) | Verdict |

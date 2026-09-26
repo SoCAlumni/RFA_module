@@ -21,7 +21,7 @@
 | POST | `/policy/{scope}/personal` | 사람/UI | — | 개인 기준 추가 (9/28) |
 | GET | `/` | 브라우저 | — | 알람/결재 웹 |
 
-순서 위반은 `409 {error: "invalid_transition", from, to}`.
+순서 위반은 `409 {error: "invalid_transition", from, to}`, 없는 문서는 `404 {error: "not_found", id}`. 상태를 바꾸는 요청은 `X-RFA-Actor` 헤더(없으면 `unknown`)가 `events[].who`로 기록된다.
 
 ## 데이터
 
@@ -82,9 +82,9 @@ token   = base64(payload) + "." + HMAC_SHA256(RFA_CLEARANCE_KEY, payload)
 
 ```
 services/review/
-├─ app.py            # FastAPI 앱, 라우트
-├─ models.py         # pydantic: Review, Verdict, Event, KnowledgeResult
-├─ store.py          # json 파일 저장, transition(id, from, to)
+├─ app.py            # FastAPI 앱, 라우트, 404/409 핸들러, final_body 계산
+├─ store.py          # json 파일 저장(tmp→rename), 전이표 ALLOWED, advance()
+(모델은 services/rfa_common/models.py 공용)
 ├─ scanner.py
 ├─ clearance.py
 ├─ policy.py         # official/personal/feedback 읽기, feedback 추가

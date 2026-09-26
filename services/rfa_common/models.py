@@ -128,6 +128,23 @@ class Decision(BaseModel):
     reason: str | None = None
 
 
+class OpenReviewRequest(BaseModel):
+    channel: Channel
+    target: Target
+    source_url: HttpUrl
+    requester: str
+    question: str
+
+
+class DraftRequest(BaseModel):
+    text: str
+    edit_log: list[EditVerdict] = Field(default_factory=list)
+
+
+class NeedsHumanRequest(BaseModel):
+    reason: str
+
+
 class Review(BaseModel):
     id: int
     status: ReviewStatus
