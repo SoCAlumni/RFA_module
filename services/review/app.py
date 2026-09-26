@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from rfa_common.models import (
     Channel,
@@ -33,6 +33,7 @@ from review.scanner import has_token, load_rules, scan
 from review.store import InvalidTransition, ReviewNotFound, ReviewStore, Step
 
 DEFAULT_DATA_DIR = Path("./data")
+INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1"})
 
 Actor = Annotated[str, Header(alias="X-RFA-Actor")]
@@ -209,6 +210,11 @@ def create_app(
         )
         record_feedback(review, FeedbackDecision.REJECT, body.reason)
         return review
+
+    @app.get("/", include_in_schema=False)
+    def approval_page() -> FileResponse:
+        """사람이 보는 알람/결재 화면. 호스트 브라우저에서 http://127.0.0.1:8790/"""
+        return FileResponse(INDEX_HTML, media_type="text/html; charset=utf-8")
 
     @app.get("/policy/{scope}", response_model=Policy)
     def get_policy(scope: str) -> Policy:
