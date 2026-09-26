@@ -28,7 +28,7 @@ from rfa_common.models import (
 
 from review import clearance
 from review.policy import FEEDBACK_FILE, PolicyNotFound, append_feedback, load_policy
-from review.publisher import MockPublisher, Publisher, PublishError
+from review.publisher import Publisher, PublishError, make_publisher
 from review.scanner import has_token, load_rules, scan
 from review.store import InvalidTransition, ReviewNotFound, ReviewStore, Step
 
@@ -72,7 +72,7 @@ def create_app(
         raise RuntimeError("RFA_CLEARANCE_KEY is required (see .env.example)")
     store = ReviewStore(root / "state")
     policy_dir = root / "policy"
-    publish_to = publisher if publisher is not None else MockPublisher(clearance_key=key)
+    publish_to = publisher if publisher is not None else make_publisher(os.environ, key)
     app = FastAPI(title="RFA review", version="0.1.0")
 
     @app.exception_handler(ReviewNotFound)

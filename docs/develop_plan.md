@@ -24,7 +24,7 @@
 | 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
 | 4 | scanner + policy | 완료 (PR #6) |
 | 5 | clearance + 결재 (approve/reject) | 완료 (PR #7) |
-| 6 | 알람/결재 웹 | |
+| 6 | 알람/결재 웹 | 완료 (PR #8) |
 | 7 | github MCP | |
 | 8 | rfa_workflow (LangGraph) | |
 | 9 | 호스트 E2E | |
@@ -224,7 +224,7 @@ services/tests/test_github.py  # httpx MockTransport
 ```
 
 **동작 정의.**
-- MCP(streamable-http, `/github/mcp`, bearer `GITHUB_MCP_TOKEN`): `list_mentions(since?) -> Mention[]`(notifications reason=mention, 본 것은 `data/state/mentions_seen.json`), `get_thread(target) -> Thread`.
+- MCP(streamable-http, `/github/mcp`, bearer `GITHUB_MCP_TOKEN`): `list_mentions(since?) -> Mention[]`(감시 레포 `RFA_GITHUB_REPOS`의 이슈 본문·댓글에서 `@RFA_GITHUB_LOGIN` 검색, 본 것은 `data/state/mentions_seen.json`), `get_thread(target) -> Thread`. notifications API는 fine-grained 토큰 미지원이라 쓰지 않음.
 - 내부: `post_comment(target, body, token)`: `clearance.verify` → `POST /repos/{o}/{r}/issues/{n}/comments`. 실패 시 예외.
 - review 앱은 env `RFA_PUBLISHER=github|mock`으로 publisher 선택.
 
