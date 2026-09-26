@@ -83,11 +83,14 @@ approve 순서: loopback 확인 → (reviewed 일 때) block/토큰 잔존 검�
 
 ## 알람/결재 웹 (`static/index.html`)
 
-프레임워크 없음. 3초마다 `GET /reviews`.
+프레임워크 없음. `GET /`로 서빙, 3초마다 `GET /reviews`. 호스트 브라우저에서 `http://127.0.0.1:8790/` (특정 문서는 `/#<id>`).
 
-- 왼쪽: 목록. 상태 배지(진행 중 / 결재 대기 / 게시됨 / 거절 / 사람 필요). 새 항목은 강조.
-- 오른쪽 타임라인: 질문 원문 → 지식(answer, sources) → 초안 → 첨삭 이력 → 스캔 결과(하이라이트) → censor 판정(원본↔수정안 나란히, 사유별 기준 태그 official/personal/scanner) → 결재 버튼.
-- 승인 버튼 → `POST /approve`. 거절은 사유 입력 필수.
+- 왼쪽: 목록(최신 순). 상태 배지: 진행 중 / 검토 중 / 결재 대기 / **차단됨**(reviewed + block) / 게시됨 / 거절됨 / 게시 실패(approved) / 사람 필요. 페이지를 연 뒤 새로 들어온 문서는 NEW.
+- 오른쪽: 질문 → 지식(answer, sources) → 초안(스캔 hit 빨강 표시) → 첨삭 이력 → 기밀검토(원본에 사유 구간 노랑 표시 ↔ 게시될 본문 나란히, 사유 칩 `official:…`/`personal:…`/`scanner:…`) → 결재 → 기록(events).
+- 결재: reviewed 일 때만 승인/거절. 거절은 사유 필수. block 이면 승인 버튼 비활성. 실패 응답(409 등)은 화면에 표시.
+- rejected/approved(게시 실패)는 안내 문구만 표시하고, 재작성·재게시 버튼은 Step 12+.
+- **보안**: GitHub 질문과 LLM 초안을 보여주므로 모든 데이터를 `textContent`로만 넣는다(`innerHTML` 등 금지, 테스트로 강제).
+- 폴링이 입력 중인 거절 사유를 지우지 않도록, 선택 문서는 status나 events 수가 바뀔 때만 다시 그린다.
 
 ## 파일 구조
 

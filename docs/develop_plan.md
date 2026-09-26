@@ -23,7 +23,7 @@
 | 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
 | 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
 | 4 | scanner + policy | 완료 (PR #6) |
-| 5 | clearance + 결재 (approve/reject) | |
+| 5 | clearance + 결재 (approve/reject) | 완료 (PR #7) |
 | 6 | 알람/결재 웹 | |
 | 7 | github MCP | |
 | 8 | rfa_workflow (LangGraph) | |
