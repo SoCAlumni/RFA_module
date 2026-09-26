@@ -18,3 +18,6 @@ __pycache__/
 *.egg-info/
 dist/
 .ruff_cache/
+
+# 생성 문서 (scripts/build_api_docs.sh)
+_site/
