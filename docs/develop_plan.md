@@ -57,8 +57,7 @@ contracts/review.openapi.yaml
 | 모델 | 필드 |
 |---|---|
 | `Channel` | enum `public`, `internal` |
-| `KnowledgeEntry` | id, title, summary, task_id, tags[], updated_at(date), source?(enum note/web/inference) |
-| `KnowledgeResult` | task_id, answer, confidence(0~1), sources[KnowledgeEntry] |
+| `KnowledgeResult` | task_id, answer, confidence(0~1), sources[str] (근거 한 줄씩) |
 | `TaskInfo` | id, name, description, updated_at |
 | `Mention` | channel, target(`owner/repo#N` 형식 검증), author, text, url, created_at |
 | `ReviewStatus` | enum opened, knowledge_ready, drafted, scanned, reviewed, approved, rejected, posted, needs_human |
@@ -103,7 +102,7 @@ data/knowledge/quest/_task.yaml, design.md
 
 **동작 정의.**
 - `GET /tasks` → `TaskInfo[]` (폴더 스캔, `_task.yaml` 없는 폴더는 무시)
-- `POST /tasks/{id}/ask {question, requester_role?, channel?}` → `KnowledgeResult`. 없는 task는 404. 상위 k=3 문서 본문을 이어 붙여 answer, 겹침 비율을 confidence, 선택 문서를 sources.
+- `POST /tasks/{id}/ask {question}` → `KnowledgeResult`. 없는 task는 404. 상위 k=3 문서 본문을 이어 붙여 answer, 겹침 비율을 confidence, 선택 문서를 `"제목: 요약"` 문자열로 sources.
 - 데모 데이터에 일부러 넣는 기밀: triv3에 미공개 모델명 `Gauss4`, 수치 `JGA 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; quest에 경로 `/nfs/quest/`. quantization은 깨끗(대조군).
 - 데이터 경로는 env `RFA_DATA_DIR`(기본 `./data`).
 
