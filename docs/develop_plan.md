@@ -97,13 +97,13 @@ services/knowledge_stub/rank.py     # 질문·문서 토큰 겹침 점수, 상�
 services/tests/test_knowledge_stub.py
 data/knowledge/orbit/_task.yaml, progress-2026-09.md
 data/knowledge/quantization/_task.yaml, qat-notes.md
-data/knowledge/quest/_task.yaml, design.md
+data/knowledge/prism/_task.yaml, design.md
 ```
 
 **동작 정의.**
 - `GET /tasks` → `TaskInfo[]` (폴더 스캔, `_task.yaml` 없는 폴더는 무시)
 - `POST /tasks/{id}/ask {question}` → `KnowledgeResult`. 없는 task는 404. 상위 k=3 문서 본문을 이어 붙여 answer, 겹침 비율을 confidence, 선택 문서를 `"제목: 요약"` 문자열로 sources.
-- 데모 데이터에 일부러 넣는 기밀: orbit에 미공개 모델명 `Nimbus2`, 수치 `EM 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; quest에 경로 `/nfs/quest/`. quantization은 깨끗(대조군).
+- 데모 데이터에 일부러 넣는 기밀: orbit에 미공개 모델명 `Nimbus2`, 수치 `EM 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; quest에 경로 `/nfs/prism/`. quantization은 깨끗(대조군).
 - 데이터 경로는 env `RFA_DATA_DIR`(기본 `./data`).
 
 **테스트.** `/tasks` 3건, `ask`가 orbit 질문에 progress 문서를 sources로 반환, 없는 task 404, frontmatter 누락 md는 건너뜀.

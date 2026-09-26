@@ -28,7 +28,7 @@
 |---|---|---|
 | orbit | progress-2026-09.md, regression-notes.md | 미공개 모델명 Nimbus2, EM 0.5%p(official), 11/3 릴리즈(official), GPU pool 10.12.3.4(personal + scanner), `hf_…` 토큰(scanner) |
 | quantization | qat-notes.md | 없음 (대조군) |
-| quest | design.md | 사내 경로 `/nfs/quest/` (scanner) |
+| prism | design.md | 사내 경로 `/nfs/prism/` (scanner) |
 
 ## 파일 구조
 

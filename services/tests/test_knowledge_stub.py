@@ -17,7 +17,7 @@ def client() -> TestClient:
 
 def test_list_tasks_returns_three_demo_tasks(client):
     ids = [t["id"] for t in client.get("/tasks").json()]
-    assert ids == ["orbit", "quantization", "quest"]
+    assert ids == ["orbit", "prism", "quantization"]
 
 
 def test_ask_orbit_returns_progress_doc_as_source(client):
