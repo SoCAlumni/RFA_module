@@ -25,7 +25,7 @@
 | 4 | scanner + policy | 완료 (PR #6) |
 | 5 | clearance + 결재 (approve/reject) | 완료 (PR #7) |
 | 6 | 알람/결재 웹 | 완료 (PR #8) |
-| 7 | github MCP | |
+| 7 | github MCP | 완료 (PR #9) |
 | 8 | rfa_workflow (LangGraph) | |
 | 9 | 호스트 E2E | |
 | 10 | 샌드박스 재현 | |
@@ -241,7 +241,8 @@ services/tests/test_github.py  # httpx MockTransport
 workflow/pyproject.toml
 workflow/rfa_workflow/{state,graph_public,llm,clients,cli,mcp_entry}.py
 workflow/rfa_workflow/nodes/{intake,knowledge,press,submit,censor}.py
-workflow/prompts/{pick_task,writer,editor,style_public,censor_public}.md
+workflow/rfa_workflow/prompts/{pick_task,writer,editor,style_public,censor_public}.md
+common/rfa_common/  # services 에서 분리: 워크플로(샌드박스)가 서비스 패키지를 끌고 가지 않게
 workflow/tests/test_graph.py, fixtures/
 ```
 

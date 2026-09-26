@@ -3,13 +3,15 @@ name = "rfa"
 version = "0.1.0"
 description = "RFA_module workspace root (외부게시 MCP Agent)"
 requires-python = ">=3.12"
-dependencies = ["rfa-services"]
+dependencies = ["rfa-common", "rfa-services", "rfa-workflow"]
 
 [tool.uv.sources]
+rfa-common = { workspace = true }
 rfa-services = { workspace = true }
+rfa-workflow = { workspace = true }
 
 [tool.uv.workspace]
-members = ["services"]
+members = ["common", "services", "workflow"]
 
 [dependency-groups]
 dev = ["pytest>=8.3", "ruff>=0.6", "httpx2"]
@@ -23,4 +25,4 @@ extend-exclude = ["docs", "reference"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
-testpaths = ["services/tests"]
+testpaths = ["services/tests", "workflow/tests"]

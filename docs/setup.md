@@ -16,7 +16,7 @@
   RFA_HOST_IP=172.17.0.1     # docker bridge, 샌드박스에서 호스트로 가는 주소
   REVIEW_URL=https://rfa-host.local:8790
   KNOWLEDGE_URL=https://rfa-host.local:8791
-  RFA_MODEL=claude-sonnet-4-6
+  RFA_MODEL=claude-opus-5
 ```
 
 ## 순서

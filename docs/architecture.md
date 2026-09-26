@@ -10,6 +10,7 @@
 | 호스트 | knowledge stub (실무대장 계약 흉내) | FastAPI | modules/knowledge-stub.md |
 | 호스트 | 외부 채널 MCP (github) | FastMCP | modules/mcp-channels.md |
 | 호스트 | 기밀 기준 문서, 피드백 | 파일 | modules/policy.md |
+| 공용 | 모듈 간 계약 모델 `rfa_common` (`common/`) | pydantic | contracts/*.openapi.yaml |
 
 ```mermaid
 flowchart LR

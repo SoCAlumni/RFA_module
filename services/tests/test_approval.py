@@ -2,11 +2,11 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import TEST_CLEARANCE_KEY
 from fastapi.testclient import TestClient
 from review.app import create_app
 from review.clearance import verify
 from review.publisher import MockPublisher
+from svc_support import TEST_CLEARANCE_KEY
 from test_review_core import DRAFT, KNOWLEDGE, OPEN, REDACT
 
 LOOPBACK = ("127.0.0.1", 40000)

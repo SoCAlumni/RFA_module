@@ -100,7 +100,7 @@ services/review/
 ├─ store.py          # json 파일 저장(tmp→rename), 전이표 ALLOWED, advance(*Step)
 ├─ scanner.py        # 규칙 기반 비밀값 스캔
 ├─ policy.py         # official/personal/feedback 읽기
-(모델은 services/rfa_common/models.py 공용)
+(모델은 common/rfa_common/models.py 공용)
 ├─ clearance.py      # (Step 5)
 ├─ publisher.py      # 승인 후 채널별 게시 (github → mcp_channels 내부 함수 호출)
 └─ static/index.html
