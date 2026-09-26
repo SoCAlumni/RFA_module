@@ -1,0 +1,20 @@
+# 내부 참고 자료 (공개 레포에 올리지 않음)
+reference/
+
+# 비밀값
+.env
+*.pem
+*.key
+certs/
+
+# 런타임 상태
+data/state/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+dist/
+.ruff_cache/
