@@ -25,4 +25,4 @@ extend-exclude = ["docs", "reference"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
-testpaths = ["services/tests"]  # Step 5 에서 workflow/tests 추가
+testpaths = ["services/tests", "workflow/tests"]

@@ -1,6 +1,6 @@
 # 셋업과 재현 (v2)
 
-> 단계가 진행되면서 채워진다. 지금은 Step 3 까지 (결재 서버 + head_stub).
+> 단계가 진행되면서 채워진다. 지금은 Step 5 까지 (결재 서버 + head_stub + 대응 에이전트 그래프).
 
 ## 전제
 
@@ -25,7 +25,17 @@ cp .env.example .env && $EDITOR .env
 
 v1 에서 쓰던 `.env` 라면 `RFA_PUBLISHER=github` 를 `RFA_PUBLISHER=mock` 으로 바꾼다 (v2 는 `mock` 만 안다. 실제 게시 `live` 는 Step 4).
 
-결재 웹: http://127.0.0.1:8790/ — 안건은 desk 가 만든다 (Step 6). 그 전에는 `curl -X POST :8790/approvals` 로 직접 넣어 볼 수 있다 (예시 본문은 `services/tests/test_approvals.py` 의 `GITHUB`).
+결재 웹: http://127.0.0.1:8790/ — 안건은 desk 가 만든다 (Step 6). 그 전에는 대응 에이전트를 손으로 돌린다:
+
+```bash
+M='{"channel":"slack","target":"C0123ABC/1727000000.000100","author":"product-team",
+    "text":"ORBIT 벤치마크 진행 어때요?","url":"https://slack.com/archives/C0123ABC/p1727000000000100",
+    "created_at":"2026-09-27T10:00:00Z"}'
+uv run --env-file .env python -m rfa_workflow run --mention-json "$M"   # → 안건 #1 pending
+# 결재 웹에서 거절(사유 "릴리즈 날짜가 들어가 있음") 후
+uv run --env-file .env python -m rfa_workflow redo 1                   # → 안건 #1 round 2
+```
+`RFA_LLM_MODE=mock` 이면 키 없이, `anthropic` 이면 Claude 가 답을 쓴다.
 
 head_stub 확인:
 ```bash
