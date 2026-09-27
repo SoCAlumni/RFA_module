@@ -1,80 +1,77 @@
-# RFA_module 계획
+# RFA_module 계획 (v2)
 
-> 최종 수정: 2026-09-26. 토의 결과를 정리한 문서. 세부는 `docs/architecture.md`와 `docs/modules/*.md` 참고.
+> 최종 수정: 2026-09-27. 9/27 팀 회의 결과. v1(9/26) 에서 무엇이 왜 바뀌었는지는 `docs/migration.md`.
+> 구조는 `docs/architecture.md`, 팀 경계 API 는 `docs/contracts.md`, 진행 상황은 `docs/develop_plan.md`.
 
 ## 배경
 
-- NVIDIA Agentic AI 해커톤 온라인 사전 챌린지 제출용. 마감 2026-09-28 23:59.
+- NVIDIA Agentic AI 해커톤 온라인 사전 챌린지 제출용. 마감 2026-09-28 23:59. 본선 2026-10-07.
 - 팀 서비스: 개인 비서 멀티에이전트 (nemoclaw + OpenShell 기반, 로컬 실행).
 - 채점: NVIDIA Agent 기술 활용 심도, 실용성/산업가치, 완성도, 독창성.
+- 참고 자료: `reference/rfa-agent-layout.html`(에이전트 배치), `reference/결재테스크/`(UI 시안).
 
-## 업무 분장 (reference/team_meeting.md)
+## 업무 분장 (9/27)
 
-| 담당 | 모듈 |
+| 담당 | 범위 |
 |---|---|
-| 민섭 | 실무 Agent(실무대장). 사용자 노트 + 검색/추론으로 task별 지식 축적. task별 에이전트 동적 생성 |
-| **승희 (이 레포)** | 외부게시 MCP Agent. 외부 요청 대응(언론사) + 기밀검토 + 외부 채널 MCP 및 tool call 정책 |
-| 다영 | OpenShell 기반 에이전트별 정책/권한, 플러그인, UI |
-
-팀 공통 스택: 에이전트 설계는 **LangGraph**, 모듈 간 인터페이스는 **MSA + OpenAPI**.
+| **승희 (이 레포)** | 대응 에이전트(여러 채널·여러 업무를 하나가 받음) + Slack·GitHub 채널 + 결재 웹 **백엔드** API 제안·구현 |
+| 다영 | 웹 프런트엔드 구현, 프런트 API 정의(API 별 담당자 제안), 시나리오 구성, 샌드박스 정책 |
+| 민섭 | 기밀 단계 분리(기밀/초기밀), 기밀 에이전트별 샌드박스, 검열 에이전트, head agent. 프런트 완성 시 통합 |
 
 ## 이 모듈이 하는 일 (한 줄)
 
-외부 채널에서 온 요청을 받아, 실무대장에게 지식을 받고, 언론사가 초안을 쓰고, 기밀검토를 거쳐, 사람 결재 후, 외부 채널에 게시한다.
+GitHub·Slack 에서 멘션을 받아, head agent 에게 검열된 지식을 받고, 답을 써서 사람 결재에 올리고, 승인되면 그 채널에 답글을 단다. 거절되면 사유를 들고 다시 쓴다.
 
 ## 확정된 결정
 
 | 항목 | 결정 | 이유 |
 |---|---|---|
-| 흐름 구분 | 카테고리 없음. 채널 보안 범위로만 Public / Internal | 회의록 구조 그대로 |
-| 지식 출처 | 실무대장(민섭)에게 OpenAPI로 요청. 지금은 같은 계약의 stub | 외부채널 담당자는 supervisor와만 소통 |
-| 초안 | 언론사(writer)가 쓰고 editor가 첨삭 (최대 2회) | debate는 허용된 예외 |
-| 기밀검토 | Public → 2-B CODE 관리자, Internal → 2-A. 둘 다 official + personal 기준 + 사람 피드백 | 회의록 2-A/2-B |
-| 비밀값 스캔 | 채널 무관, 호스트 서버가 자동 실행 | LLM이 놓칠 수 있는 토큰/IP는 코드로 |
-| 게이트 | 하드 게이트. 서명된 승인 토큰 없으면 게시 불가 | "유출 방지"가 핵심 |
-| 사람 결재 | 호스트 전용 알람/결재 웹에서만. 에이전트에게 승인·게시 기능 없음 | LLM이 승인을 대신 누르는 경로 차단 |
-| 재결재 경로 | (예정) 거절 시 사유를 갖고 `rejected → drafted` 재작성 루프, 게시 실패 시 republish. 지금은 종착지 | 거절이 끝이 아니라 개선 입력이 되게. 구현은 Step 12+ |
-| 흐름 제어 | LangGraph 고정 그래프. LLM이 고르는 건 노드 안의 판단뿐 | 자유도가 높으면 탈주 |
-| 입구 | OpenClaw 에이전트 `public-desk` + cron | nemoclaw always-on 활용 |
-| 외부 연동 | GitHub만 실제. Confluence/L&D Hub/Slack은 인터페이스만 | 마감 |
-| 언어 | Python (FastAPI, FastMCP, LangGraph) | |
+| 대응 에이전트 수 | **하나.** 채널별로 다른 건 어댑터뿐 | bird-eye view. UI 시안의 채널별 desk 는 화면상 구분으로 본다 |
+| 지식 출처 | head agent `POST /ask` 하나. 업무 선택·검열은 head 안에서 | 공개 영역은 승인된 지식만 본다. 업무 목록조차 기밀일 수 있음 |
+| head 에게 보내는 것 | 질문, 채널, 독자(public/company), 답글 자리, 질문 주소, 질문자, 스레드 맥락, 거절 이력 | head 가 "어디서 와서 어디로 나갈 답인지" 알아야 검열 기준을 고름 |
+| head 가 돌려주는 것 | 검열된 knowledge, 고른 task, (답 못 하면) refusal | sources 는 뺐다 (9/27 사용자 결정) |
+| 결재 | 승인 / 거절(사유). 승인하면 결재 서버가 바로 게시 | 데모에 실제 결재가 반드시 필요 |
+| 거절 후 | 이전 초안 + 사유를 head 에 보내 지식을 다시 받고 재작성 → 재결재. 3회 거절이면 closed | 거절이 끝이 아니라 개선 입력이 되게 |
+| 결재 API 보호 | 인증·loopback 제한 없음, CORS 허용 | 다영님 프런트가 다른 포트·기기에서 부름. 승인 호출 차단은 샌드박스 정책 몫 |
+| 흐름 제어 | LangGraph 고정 그래프. LLM 은 초안 작성만 | 자유도가 높으면 탈주 |
+| 실행 위치 | 호스트. 샌드박스 없음 | 샌드박스는 기밀 영역에만 (bird-eye view) |
+| 채널 | GitHub(멘션 폴링) + Slack(Socket Mode, 공개 URL 불필요) | 오늘 저녁 Slack 까지 |
+| 저장소 | 결재 안건은 JSON 파일 하나씩 (DB 없음) | 데모 규모. v1 store 골격 재사용 |
+| 언어 | Python (FastAPI, LangGraph, slack_sdk) | |
 
 ## 전체 그림
 
 ```
-외부 채널 (GitHub 멘션)
-  │
-  ▼
-[샌드박스 rfa]
-  public-desk (OpenClaw, cron) ── github.list_mentions ──► workflow.run(mention)
-                                                            │ LangGraph (Public 대응 그래프)
-                                                            │ intake → ask_knowledge → write ⇄ edit
-                                                            │ → submit → censor_public → 결재 대기
-[호스트]
-  review 서비스 (OpenAPI): 결재 문서, 상태기계, 스캐너, 알람/결재 웹, 서명, 게시
-  knowledge stub (OpenAPI): 실무대장 계약 흉내
-  mcp_channels (FastMCP): github
-  사람 ── 결재 웹에서 승인 ──► 서명 토큰 ──► GitHub 게시
+   GitHub / Slack
+        ▲ ▼ (읽기)
+  ┌──────────────┐   "지식 줘"     ┌──────────────┐
+  │ C. desk      │ ─────────────► │ B. 지식 서버  │  ← 민섭님 것으로 교체
+  │ (감시+작성)   │                └──────────────┘
+  │              │   "결재 올려줘"  ┌──────────────┐        ┌────────────┐
+  │              │ ─────────────► │ A. 결재 서버  │ ◄───── │ 다영님 프런트 │
+  │              │ ◄───────────── │  (웹 백엔드)  │        │  (브라우저)  │
+  └──────────────┘  "거절된 거 있어?"└──────┬───────┘        └────────────┘
+                                          │ 승인되면 게시
+                                          ▼
+                                    GitHub / Slack
 ```
 
-## 일정
+## 일정 (9/27 저녁 ~ 9/28)
 
-| 날짜 | 목표 |
+| 단계 | 내용 |
 |---|---|
-| 9/26 | 문서 → 호스트 서비스 → LangGraph Public 그래프 → 샌드박스 재현 → GitHub E2E 1회 |
-| 9/27 | Internal 대응(1-C) + 2-A censor. 채널은 로컬 파일로 흉내 |
-| 9/28 | 개인 기밀 기준 관리 UI/API, README, 제출 자료 |
-
-## GitHub 공유 원칙
-
-- 올리는 것: 코드, `agents/agents.yaml`, 정책 파일, 스크립트, stub 데이터, 문서.
-- 올리지 않는 것: 샌드박스/이미지, 대화 기록, `data/state/`, **비밀값**(`.env`).
-- 팀원은 `scripts/setup_sandbox.sh`로 샌드박스를 재현한다. `nemoclaw config export`는 현재 환경에서 실패하므로 의존하지 않는다.
+| Step 1 | API 계약 확정·공유 (완료, PR #15) |
+| Step 2 | v1 정리 + head_stub |
+| Step 3 | 결재 서버 |
+| Step 4 | GitHub·Slack 채널 |
+| Step 5 | LangGraph 그래프 |
+| Step 6 | desk + E2E |
 
 ## 리스크
 
 | 리스크 | 대응 |
 |---|---|
-| 샌드박스 → 호스트 서비스 네트워크 연결 (`mcp add`는 HTTPS + 비-loopback 사설 호스트만) | docker bridge IP + mkcert. 막히면 LangGraph를 호스트에서 돌려 데모 확보 후 이전 |
-| `workflow.run`을 OpenClaw 툴로 노출하는 방식 | stdio MCP 우선, 안 되면 exec 스킬 |
-| 실무대장 계약이 민섭님 구현과 어긋남 | 계약을 일요일 미팅 전에 공유, stub은 계약만 지킴 |
+| Slack 앱 설치 권한 (회사 워크스페이스) | 개인 무료 워크스페이스로 (`person/TODO.md`) |
+| head agent 계약이 민섭님 구현과 어긋남 | 계약을 먼저 공유함 (`docs/contracts.md`). stub 은 계약만 지킴 |
+| 프런트가 늦음 | 결재 서버에 참조 웹 내장 (`:8790/`) — 데모는 이걸로도 가능 |
+| 대응 에이전트 하나가 public·company 지식을 섞음 | 요청 사이 기억 없음 (그래프 실행마다 새 상태). 독자(audience)를 head 에 보내 검열 기준을 분리 |

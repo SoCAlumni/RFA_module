@@ -1,114 +1,100 @@
-# 아키텍처
+# 아키텍처 (v2)
 
-## 1. 구성 요소
+## 1. 터미널 3개
 
-| 위치 | 구성 요소 | 구현 | 문서 |
-|---|---|---|---|
-| 샌드박스 `rfa` | `public-desk` OpenClaw 에이전트 (+cron) | 프롬프트 + agents.yaml | modules/agents.md |
-| 샌드박스 `rfa` | Public 대응 워크플로 | LangGraph, `workflow.run` 툴 | modules/workflow.md |
-| 호스트 | review 서비스 (결재 문서, 스캐너, 서명, 알람/결재 웹) | FastAPI | modules/review-service.md |
-| 호스트 | knowledge stub (실무대장 계약 흉내) | FastAPI | modules/knowledge-stub.md |
-| 호스트 | 외부 채널 MCP (github) | FastMCP | modules/mcp-channels.md |
-| 호스트 | 기밀 기준 문서, 피드백 | 파일 | modules/policy.md |
-| 공용 | 모듈 간 계약 모델 `rfa_common` (`common/`) | pydantic | contracts/*.openapi.yaml |
-
-```mermaid
-flowchart LR
-  GH[(GitHub)]
-  subgraph SB[샌드박스 rfa - OpenShell]
-    DESK[public-desk\nOpenClaw + cron]
-    WF[LangGraph\nPublic 대응 그래프]
-    INF[inference.local\n키 없는 LLM 호출]
-  end
-  subgraph HOST[호스트]
-    MCP[mcp_channels\ngithub]
-    KS[knowledge stub\n실무대장 계약]
-    RV[review 서비스\n상태기계·스캐너·서명]
-    WEB[알람/결재 웹\n127.0.0.1:8790]
-  end
-  HUMAN((사람))
-  GH -->|멘션| MCP
-  DESK -->|list_mentions| MCP
-  DESK -->|workflow.run| WF
-  WF --> INF
-  WF -->|ask| KS
-  WF -->|reviews API| RV
-  RV --- WEB
-  HUMAN -->|승인/거절| WEB
-  RV -->|서명 토큰 + post_comment| MCP
-  MCP -->|게시| GH
+```
+   GitHub / Slack
+        ▲ ▼ (읽기)
+  ┌──────────────┐   "지식 줘"     ┌──────────────┐
+  │ C. desk      │ ─────────────► │ B. 지식 서버  │  ← 민섭님 것으로 교체
+  │ (감시+작성)   │                └──────────────┘
+  │              │   "결재 올려줘"  ┌──────────────┐        ┌────────────┐
+  │              │ ─────────────► │ A. 결재 서버  │ ◄───── │ 다영님 프런트 │
+  │              │ ◄───────────── │  (웹 백엔드)  │        │  (브라우저)  │
+  └──────────────┘  "거절된 거 있어?"└──────┬───────┘        └────────────┘
+                                          │ 승인되면 게시
+                                          ▼
+                                    GitHub / Slack
 ```
 
-## 2. 회의록 규칙과의 대응
-
-| 회의록 규칙 | 구현 |
-|---|---|
-| 외부채널 담당자는 supervisor(비서/실무대장)와만 소통 | writer는 knowledge 계약(`/tasks/{id}/ask`)으로만 지식을 얻음 |
-| task 내 소통은 supervisor 경유 | public-desk가 그래프를 실행, 노드끼리는 State로만 값 전달 |
-| non-supervisor 간 통신은 debate 때만 | write ⇄ edit 루프 (최대 2회) |
-| 기밀검토 2-A Internal / 2-B Public | censor_internal / censor_public 노드, 정책 스코프 분리 |
-| Human in the loop로 기밀 기준 관리 | 거절 사유 → feedback.jsonl → censor few-shot |
-
-## 3. 예시 흐름: "@zetwhite ORBIT 벤치마크 진행 어때?"
-
-| # | 어디 | 누가 판단 | 코드 | 결과 |
+| | 실행 명령 | 포트 | 역할 | 비고 |
 |---|---|---|---|---|
-| 1 | GitHub | 사람 | — | issue #34 댓글 |
-| 2 | 샌드박스 | OpenClaw cron | `agents.yaml` cron | public-desk 깨움 |
-| 3 | 샌드박스 | LLM (public-desk) | `agents/public-desk/AGENTS.md` | `github.list_mentions` 호출 결정 |
-| 4 | 호스트 | 코드 | `services/mcp_channels/github.py::list_mentions` | GitHub API → Mention 목록 |
-| 5 | 샌드박스 | LLM (public-desk) | AGENTS.md | `workflow.run(mention)` 호출 |
-| 6 | 샌드박스 | 코드 | `workflow/.../mcp_entry.py` | 그래프 실행 시작 |
-| 7 | 샌드박스→호스트 | 코드 (intake) | `nodes/intake.py` → `POST /reviews` | review #12 `opened`. **알람 등장** |
-| 8 | 샌드박스→호스트 | LLM(task 선택) + 코드 | `nodes/knowledge.py` → `GET /tasks`, `POST /tasks/orbit/ask` | answer + sources. `knowledge_ready` |
-| 9 | 샌드박스 | LLM (writer) | `nodes/press.py`, `prompts/writer.md` | 초안 |
-| 10 | 샌드박스 | LLM (editor) | `prompts/editor.md` | pass / revise(+notes). revise면 9로, 최대 2회 |
-| 11 | 샌드박스→호스트 | 코드 (submit) | `POST /reviews/12/draft` → `scanner.py` 자동 | `drafted` → `scanned`. 스캔 결과 기록 |
-| 12 | 샌드박스→호스트 | LLM (censor_public) | `nodes/censor.py`, `prompts/censor_public.md`, `GET /policy/public` | verdict allow/redact/block + 사유. `POST /reviews/12/verdict` → `reviewed` |
-| 13 | 샌드박스 | 코드 | 그래프 END | public-desk에 "review #12 결재 대기" 반환 |
-| 14 | 호스트 | 사람 | 결재 웹 | 원본↔수정안 비교 후 승인 |
-| 15 | 호스트 | 코드 | `approval.py` (loopback만) → `clearance.sign` → `github.post_comment` | `approved` → `posted`. GitHub에 수정본 게시 |
+| A. 결재 서버 (`services/approvals`) | `uvicorn approvals.app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름. Step 3 |
+| B. 지식 서버 (`services/head_stub`) | `uvicorn head_stub.app:app --port 8791` | 8791 | `POST /ask` 하나. `data/knowledge/` 에서 키워드로 찾아 답 | 민섭님 head agent 오면 안 켬 (`HEAD_URL` 만 변경) |
+| C. desk (`workflow/rfa_workflow`) | `python -m rfa_workflow desk` | 없음 | 5초마다 GitHub/Slack 확인 → LangGraph 그래프 실행 → B 에 지식 요청, A 에 안건 제출. A 의 거절 안건을 폴링해 재작성 | 요청을 받지 않고 보내기만 함. Step 5·6 |
 
-거절 시: 15 대신 `rejected`, 사유가 `data/policy/feedback.jsonl`에 추가되어 다음 12번에 few-shot으로 주입.
-(예정) 재결재 경로: 거절 사유를 갖고 writer가 재작성(`rejected → drafted`)해 같은 관문을 다시 통과하고, 게시 실패 문서는 결재 웹에서 재게시한다. `docs/modules/review-service.md` 참고.
+- **서버**(A, B)는 요청이 올 때만 일한다. **desk**(C)는 요청이 없어도 스스로 돈다 (`while True: tick(); sleep(5)`).
+- LangGraph 그래프는 별도 프로세스가 아니라 desk 안에서 호출되는 함수다.
+- `scripts/run_services.sh` 가 A+B 를, `scripts/run_desk.sh` 가 C 를 띄운다.
 
-데모용 stub 지식(`data/knowledge/orbit/`)에는 일부러 다음을 섞는다: 미공개 릴리즈 일자(official), 몰래 쓰는 GPU pool(personal), 내부 IP·토큰(scanner). 12번에서 이들이 각각 어떤 기준으로 걸리는지 결재 웹에 보이게 한다.
+## 2. 모듈 단위
 
-## 4. Tool call 정책표 (다영님 OpenShell 권한 설정용)
+```
+ 바깥 세상                          이 PC (호스트)                                        다른 팀원
+┌──────────┐      ┌─────────────────────────────────────────────────────────┐
+│  GitHub  │      │  C. desk  (python -m rfa_workflow desk)                  │
+│  이슈    │◄────►│  ┌───────────────────────────────────────────────────┐  │
+│ @login   │ 폴링 │  │ channels/github.py   channels/slack.py            │  │
+└──────────┘      │  │   (멘션 폴링)          (Socket Mode 수신)           │  │
+┌──────────┐      │  └───────────┬───────────────────┬───────────────────┘  │
+│  Slack   │◄────►│              ▼   Mention          ▼                       │
+│ @rfa-desk│ 소켓 │  ┌───────────────────────────────────────────────────┐  │
+└──────────┘      │  │  LangGraph  graph.py  (대응 에이전트, 채널 무관)     │  │
+                  │  │   intake → ask_head → write(LLM) → submit          │  │
+                  │  └──────┬──────────────────────────────┬─────────────┘  │
+                  │         │ POST /ask                     │ POST /approvals │
+                  │         ▼                               ▼                 │
+                  │  B. head_stub :8791              A. approvals :8790       │
+                  │  ┌──────────────────┐          ┌───────────────────────┐ │      ┌──────────────┐
+                  │  │ POST /ask        │          │ 결재 API + 상태기계     │◄┼──────┤ 웹 프런트     │
+                  │  │ data/knowledge/  │          │ pending→approved→posted│ │ REST │ (다영님)      │
+                  │  │ 에서 검색해 답함  │          │ pending→rejected       │ │      │              │
+                  │  └──────────────────┘          │ 승인 시 채널에 게시     │ │      └──────────────┘
+                  │   ↑ 민섭님 head agent 로        └───────────┬───────────┘ │
+                  │     교체. 검열은 그 안에서                   ▼             │
+                  │                                   channels/*.post()  ─────┼──► GitHub 댓글 / Slack 답글
+                  └─────────────────────────────────────────────────────────┘
+```
 
-| 호출 주체 | 툴/엔드포인트 | 종류 | 외부 영향 | 결재 |
-|---|---|---|---|---|
-| public-desk | `github.list_mentions`, `github.get_thread` | MCP 읽기 | 없음 | 불필요 |
-| public-desk | `workflow.run` | 샌드박스 내부 | 없음 | 불필요 |
-| LangGraph 노드 | `knowledge: GET /tasks, POST /tasks/{id}/ask` | OpenAPI 읽기 | 없음 | 불필요 |
-| LangGraph 노드 | `review: POST /reviews, /knowledge, /draft, /verdict`, `GET /policy/*` | OpenAPI 쓰기(내부 상태) | 없음 | 불필요 |
-| LangGraph 노드 | `https://inference.local` | LLM | 없음 | 불필요 |
-| 호스트 (결재 후) | `github.post_comment` | 외부 게시 | **있음** | **필수, 서명 검증** |
-| 사람만 | `POST /reviews/{id}/approve\|reject` | 결재 | — | 호스트 loopback만 허용 |
-| 아무도 | approve, post_comment를 샌드박스에서 호출 | — | — | 네트워크 정책 + 서버 검증으로 차단 |
+| 경로 | 무엇 | 단계 |
+|---|---|---|
+| `common/rfa_common/contracts.py` | 계약 모델. `contracts/*.openapi.yaml` 과 1:1 (테스트가 대조) | 1 |
+| `contracts/head.openapi.yaml` | desk → head agent | 1 |
+| `contracts/approvals.openapi.yaml` | 프런트·desk → 결재 서버 | 1 |
+| `services/head_stub/` | `POST /ask` stub | 2 |
+| `services/channels/github.py` | GitHub 멘션 찾기(폴링), 스레드 읽기, 댓글 달기 | 2 (Step 4 에서 공통 인터페이스) |
+| `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 4 |
+| `services/approvals/` | 결재 서버 + 참조 웹 | 3 |
+| `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 | 5 |
+| `workflow/rfa_workflow/desk.py` | 상주 루프 | 6 |
 
-## 5. 보안 경계
+## 3. 흐름: Slack 에서 "@rfa-desk ORBIT 벤치마크 어때?"
 
-- 샌드박스에는 GitHub 토큰, 서명 키, LLM 키가 없다. LLM 키는 OpenShell 게이트웨이가 `inference.local`에서 주입한다.
-- 게시는 호스트 코드만 하며, `clearance = HMAC(review_id, target, sha256(body), exp)` 검증을 통과해야 한다. 승인된 본문과 다른 본문은 해시가 달라 거부된다.
-- 승인 엔드포인트는 호스트 loopback 요청만 받는다. 샌드박스는 그 포트로 가는 정책이 없다.
-- 순서는 review 서비스 상태기계가 강제한다. LLM이 단계를 건너뛰면 409로 거부되고 문서는 멈춘다.
-- 자동 복구가 먼저다. 일시적 오류는 backoff 재시도, 409 는 최신 상태로 판단, 지식이 없으면 supervisor(public-desk)가 질문을 보완해 재요청한다. 실행당 복구 합계 3회를 넘거나 사람의 정보·판단이 필요할 때만 `needs_human` 으로 사람에게 넘긴다(`docs/modules/workflow.md` 실패 처리).
-- 게시된 답글은 사용자 계정 이름으로 달리므로, 본문 끝에 보이지 않는 `<!-- rfa-bot -->` 표시를 붙인다. 멘션 검색은 이 표시가 있는 글만 건너뛰어, 시스템이 자기 답글에 반응해 결재 요청을 반복 생성하지 않는다. 사용자가 직접 쓴 `@자기아이디`는 정상 요청으로 받는다.
+| # | 어디 | 누가 판단 | 결과 |
+|---|---|---|---|
+| 1 | Slack | 사람 | `#rfa-test` 에 멘션 |
+| 2 | desk | 코드 | Socket Mode 로 이벤트 수신 → `Mention` |
+| 3 | desk → head | 코드 | `POST /ask` {질문, slack, company, 스레드, 맥락, feedback=[]} |
+| 4 | head | head agent | 업무(orbit) 선택, 검열된 knowledge 반환 |
+| 5 | desk | LLM (writer) | Slack 말투 초안 |
+| 6 | desk → A | 코드 | `POST /approvals` → 안건 #12 `pending` |
+| 7 | 프런트 | 사람 | 초안 확인 → **거절** "릴리즈 날짜가 들어가 있음" → `rejected` |
+| 8 | desk | 코드 | 다음 틱에 `rejected` 발견 → 3번을 feedback=[{초안, 사유}] 로 다시 |
+| 9 | desk → A | 코드 | `POST /approvals/12/revise` → `pending`, round 2 |
+| 10 | 프런트 | 사람 | **승인** |
+| 11 | A | 코드 | `approved` → Slack 스레드에 답글 → `posted` |
 
-## 6. 패턴 매핑
+3번 거절되면 `closed` 로 닫히고 더 이상 다시 쓰지 않는다.
 
-| 패턴 | 해당 부분 |
-|---|---|
-| Supervisor / Hierarchical teams | 비서 → Public/Internal 대응 담당자, 실무대장 → task 에이전트 |
-| Routing | 채널 보안 범위 → censor_public / censor_internal |
-| Prompt chaining | 고정 그래프 intake → … → censor |
-| Evaluator-optimizer | write ⇄ edit |
-| Human-in-the-loop | 결재 웹 |
-| Sub-agent as a tool | `workflow.run`, `knowledge ask` |
+## 4. 경계와 보안
 
-## 7. 팀 통합
+- 이 레포에는 **검열이 없다.** head agent 가 돌려준 knowledge 는 검열이 끝난 것으로 취급한다. stub 은 검열하지 않으므로 데모 지식의 기밀이 초안에 흘러들고, 사람이 거절하는 장면이 된다.
+- 게시는 결재 서버만 한다. desk 에는 게시 경로가 없다 (채널의 `post()` 를 부르는 곳은 approvals 뿐).
+- 결재 API 에는 인증이 없다. 에이전트가 승인을 부르지 못하게 막는 것은 샌드박스 네트워크 정책(다영님).
+- 그래프는 요청 사이에 기억을 남기지 않는다 (실행마다 새 상태). 앞 요청의 지식이 다른 채널의 답에 섞이지 않는다.
+- 게시한 GitHub 답글에는 보이지 않는 `<!-- rfa-bot -->` 표시를 붙여, 멘션 폴링이 자기 답글에 다시 반응하지 않게 한다. Slack 은 봇 자신의 메시지를 이벤트에서 거른다 (Step 4).
 
-- 민섭님: `contracts/knowledge.openapi.yaml`을 구현하면 `KNOWLEDGE_URL`만 바꾼다.
-- 다영님: `contracts/review.openapi.yaml`로 알람/결재 화면을 대체. 4장 정책표로 OpenShell 권한 설정. `agents/agents.yaml` 조각을 통합 매니페스트에 합친다.
-- Internal 채널(Confluence, L&D Hub)은 `mcp_channels/`에 서버를 추가하고, 그래프는 `channel` 값과 censor 노드만 바꾼다.
+## 5. 팀 통합
+
+- 민섭님: `contracts/head.openapi.yaml` 을 구현하면 `HEAD_URL` 만 바꾼다.
+- 다영님: `contracts/approvals.openapi.yaml` 의 `frontend` 태그 5개를 부른다. 참조 웹 `:8790/` 이 같은 API 를 쓰므로 동작 예시로 볼 수 있다.

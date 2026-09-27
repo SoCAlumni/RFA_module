@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
-from rfa_common.models import Target
 
 
 class ThreadComment(BaseModel):
@@ -14,7 +13,7 @@ class ThreadComment(BaseModel):
 
 
 class Thread(BaseModel):
-    target: Target
+    target: str = Field(description="owner/repo#N")
     title: str
     body: str
     state: str

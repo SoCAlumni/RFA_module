@@ -1,75 +1,43 @@
-# 셋업과 재현
+# 셋업과 재현 (v2)
+
+> 단계가 진행되면서 채워진다. 지금은 Step 2 까지 (head_stub 만 실행 가능).
 
 ## 전제
 
-- nemoclaw v0.0.124 + OpenShell 설치, Docker 동작, `nemoclaw onboard` 1회 완료(inference provider 설정됨).
 - Python 3.12+, `uv`.
-- GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write (+ Pull requests read). notifications 권한은 필요 없음.
+- GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write.
+- Slack 앱 (Step 4 부터): `person/TODO.md` 의 절차대로 만들고 봇 토큰(`xoxb-`)과 앱 토큰(`xapp-`)을 받는다.
 
-## 파일
-
-```
-.env.example → .env (gitignore)
-  GITHUB_TOKEN=
-  GITHUB_MCP_TOKEN=          # MCP 서버 bearer (임의 문자열)
-  RFA_CLEARANCE_KEY=         # openssl rand -hex 32
-  RFA_HOST_IP=172.17.0.1     # docker bridge, 샌드박스에서 호스트로 가는 주소
-  REVIEW_URL=https://rfa-host.local:8790
-  KNOWLEDGE_URL=https://rfa-host.local:8791
-  RFA_MODEL=claude-opus-5
-```
-
-## 순서
+## 설치와 테스트
 
 ```bash
-# 1. 호스트 서비스
+uv sync
+uv run ruff check . && uv run ruff format --check .
+uv run pytest -q
+```
+
+## 실행
+
+```bash
 cp .env.example .env && $EDITOR .env
-./scripts/run_services.sh          # review(8790, 결재 웹) + knowledge_stub(8791) + github MCP(8792). Ctrl+C 로 종료
-                                   # 포트가 이미 쓰이면 바로 멈춘다. 로그: data/state/logs/
-
-# 1-1. 샌드박스 없이 호스트에서 전체 흐름 (Step 9)
-RFA_LLM_MODE=anthropic ./scripts/demo_host.sh   # 새 멘션 → 워크플로 → 결재 대기. 브라우저 http://127.0.0.1:8790/ 에서 승인
-# 키 없이 흐름만 보려면 RFA_LLM_MODE=mock
-
-# 2. 샌드박스 (레포 파일만으로 새로 만듦, 기존 my-assistant는 건드리지 않음)
-./scripts/setup_sandbox.sh
-#   nemoclaw onboard --name rfa --agents agents/agents.yaml --yes
-#   nemoclaw rfa hosts-add rfa-host.local $RFA_HOST_IP
-#   nemoclaw rfa policy add --from-file policies/rfa.yaml     # rfa-host.local:8790/8791/8792 허용
-#   nemoclaw rfa mcp add github --url https://rfa-host.local:8792/github/mcp --env GITHUB_MCP_TOKEN --trusted-private-host rfa-host.local --deny-tool 'post_*'
-#   nemoclaw rfa upload workflow/ /sandbox/workflow && nemoclaw rfa exec -- pip install -e /sandbox/workflow
-#   (workflow.run stdio MCP 등록: openclaw config로)
-#   cron 등록
-
-# 3. 확인
-nemoclaw rfa mcp status --tools
-nemoclaw rfa agents list
-nemoclaw rfa exec -- curl -s https://inference.local/v1/models | head -c 100     # 200
-nemoclaw rfa exec -- curl -s -m 3 https://rfa-host.local:8790/reviews/1/approve  # 실패해야 정상
-
-# 4. 데모
-# 테스트 레포 이슈에 @mention 작성 → 2분 내 http://127.0.0.1:8790 알람 → 승인
-# 즉시 트리거: nemoclaw rfa agent --agent public-desk -m "새 멘션이 있는지 확인해."
+./scripts/run_services.sh          # head_stub(8791). Ctrl+C 로 종료. 로그: data/state/logs/
 ```
 
-## 인증서 (mkcert)
-
+head_stub 확인:
 ```bash
-mkcert -install
-mkcert rfa-host.local 172.17.0.1
-export NEMOCLAW_CORPORATE_CA_BUNDLE="$(mkcert -CAROOT)/rootCA.pem"   # onboard 전에
+curl -s -X POST http://127.0.0.1:8791/ask -H 'content-type: application/json' -d '{
+  "question": "ORBIT 벤치마크 진행 어때?",
+  "channel": "github", "audience": "public",
+  "target": "zetwhite/rfa-test#1", "url": "https://github.com/zetwhite/rfa-test/issues/1",
+  "requester": "someone",
+  "feedback": [{"draft": "…", "reason": "릴리즈 날짜 빼줘", "at": "2026-09-27T09:00:00Z"}]
+}'
 ```
-caddy(또는 uvicorn ssl)가 `rfa-host.local` 인증서로 8790/8791/8792를 서빙. approve/reject는 앱 레벨에서 `127.0.0.1` 출처만 허용하므로 프록시를 통해 와도 거부된다.
+`feedback` 를 빼고 보내면 `11/3` 릴리즈 문장이 knowledge 에 들어 있고, 넣으면 빠진다.
 
-## 막혔을 때 (fallback)
-
-| 문제 | 임시 대안 |
-|---|---|
-| `mcp add` 사설 호스트 검증 실패 | knowledge/review 호출은 정책 preset만으로 허용(LangGraph는 MCP가 아니라 HTTP 클라이언트), github MCP만 mcp add |
-| 그래도 샌드박스→호스트 불가 | LangGraph를 호스트에서 실행(`python -m rfa_workflow run`), public-desk는 알림만. 데모 확보 후 이전 |
-| `workflow.run` stdio 등록 불가 | public-desk에 exec 허용 + 스킬로 `python -m rfa_workflow run` |
+API 문서: 서버가 떠 있으면 http://127.0.0.1:8791/docs. 계약 전체는 https://socalumni.github.io/RFA_module/.
 
 ## GitHub 공유
 
-- 올림: 코드, docs, contracts, agents, policies, scripts, data/knowledge, data/policy(예시), `.env.example`.
-- 안 올림: `.env`, `data/state/`, 인증서, 샌드박스/이미지.
+- 올림: 코드, docs, contracts, scripts, data/knowledge, `.env.example`.
+- 안 올림: `.env`, `data/state/`, `reference/`, 인증서.

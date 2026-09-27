@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 
-from knowledge_stub.loader import Doc
+from head_stub.loader import Doc
 
 _TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]{2,}")
 

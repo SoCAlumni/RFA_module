@@ -2,25 +2,30 @@ import json
 from datetime import UTC, datetime
 
 import pytest
-from fake_github import REPO, FakeGithub, comment, issue
-from fastapi.testclient import TestClient
-from mcp_channels.github import (
+from channels.github import (
     BOT_MARKER,
     GithubClient,
     GithubConfig,
     GithubError,
     MentionTracker,
     find_mentions,
+    parse_target,
 )
-from mcp_channels.server import MCP_PATH, create_app
-from review.app import create_app as create_review_app
-from review.clearance import sign
-from review.publisher import GithubPublisher, MockPublisher, PublishError, make_publisher
-from test_approval import LOOPBACK, to_reviewed
-from test_review_core import OPEN, REDACT
+from fake_github import REPO, FakeGithub, comment, issue
 
 SINCE = datetime(2026, 9, 26, 9, 0, tzinfo=UTC)
 CONFIG = GithubConfig(token="gh-token", login="zetwhite", repos=(REPO,))
+
+
+def test_parse_target():
+    assert parse_target("team/rfa-test#34") == ("team/rfa-test", 34)
+
+
+def test_config_from_env_requires_keys():
+    env = {"GITHUB_TOKEN": "t", "RFA_GITHUB_LOGIN": "zetwhite", "RFA_GITHUB_REPOS": "a/b, c/d"}
+    assert GithubConfig.from_env(env).repos == ("a/b", "c/d")
+    with pytest.raises(RuntimeError, match="RFA_GITHUB_REPOS"):
+        GithubConfig.from_env({k: v for k, v in env.items() if k != "RFA_GITHUB_REPOS"})
 
 
 def test_find_mentions_rules():
@@ -42,7 +47,8 @@ def test_find_mentions_rules():
     ]
     assert found[1].text == "hi @zetwhite, ORBIT 진행 어때?"
     assert str(found[1].url).endswith("#issuecomment-10")
-    assert found[0].channel == "public"
+    assert found[0].channel == "github"
+    assert found[0].audience == "public"
 
 
 def test_self_mention_counts_but_own_bot_reply_does_not():
@@ -98,143 +104,25 @@ def test_api_error_raises():
         GithubClient("t", transport=fake.transport()).get_thread(f"{REPO}#99")
 
 
-def test_github_publisher_verifies_clearance_before_calling_api():
+def test_create_comment_marks_body_and_returns_url():
     fake = FakeGithub()
-    pub = GithubPublisher(clearance_key="k", client=GithubClient("t", transport=fake.transport()))
-    target, body = f"{REPO}#7", "승인된 답변"
-
-    with pytest.raises(PublishError, match="body_mismatch"):
-        pub.publish(target, body + "!", sign("k", 1, target, body))
-    with pytest.raises(PublishError, match="bad_signature"):
-        pub.publish(target, body, sign("other", 1, target, body))
-    assert fake.requests == []  # 검증 실패면 GitHub 호출 없음
-
-    url = pub.publish(target, body, sign("k", 1, target, body))
+    url = GithubClient("t", transport=fake.transport()).create_comment(f"{REPO}#7", "승인된 답변")
     assert url.endswith("#issuecomment-999")
-    assert fake.posted == [(target, f"{body}\n\n{BOT_MARKER}")]
+    assert fake.posted == [(f"{REPO}#7", f"승인된 답변\n\n{BOT_MARKER}")]
+
+
+def test_create_comment_failure_raises():
+    fake = FakeGithub(fail_post=403)
+    with pytest.raises(GithubError, match="403"):
+        GithubClient("t", transport=fake.transport()).create_comment(f"{REPO}#7", "x")
 
 
 def test_posted_reply_is_not_picked_up_as_new_mention(tmp_path):
     """게시 → 다음 폴링: 우리가 단 답글(@login 포함)이 새 멘션으로 돌아오지 않는다."""
     fake = FakeGithub()
     client = GithubClient("t", transport=fake.transport())
-    target = f"{REPO}#7"
-    reply = "(담당: @zetwhite) 보완 검토 중이에요."
-    GithubPublisher(clearance_key="k", client=client).publish(
-        target, reply, sign("k", 1, target, reply)
-    )
+    client.create_comment(f"{REPO}#7", "(담당: @zetwhite) 보완 검토 중이에요.")
     ((_, posted_body),) = fake.posted
     fake.comments = [comment(30, 7, posted_body, author="zetwhite")]
 
     assert MentionTracker(tmp_path / "seen.json").poll(client, CONFIG, SINCE) == []
-
-
-def test_github_publisher_wraps_api_failure():
-    fake = FakeGithub(fail_post=403)
-    pub = GithubPublisher(clearance_key="k", client=GithubClient("t", transport=fake.transport()))
-    with pytest.raises(PublishError, match="403"):
-        pub.publish(f"{REPO}#7", "x", sign("k", 1, f"{REPO}#7", "x"))
-
-
-def test_make_publisher_selects_by_env():
-    assert isinstance(make_publisher({}, "k"), MockPublisher)
-    assert isinstance(
-        make_publisher({"RFA_PUBLISHER": "github", "GITHUB_TOKEN": "t"}, "k"), GithubPublisher
-    )
-    with pytest.raises(RuntimeError, match="GITHUB_TOKEN"):
-        make_publisher({"RFA_PUBLISHER": "github"}, "k")
-    with pytest.raises(RuntimeError, match="unknown"):
-        make_publisher({"RFA_PUBLISHER": "slack"}, "k")
-
-
-# ---------- MCP 서버 ----------
-
-ENV = {
-    "GITHUB_TOKEN": "gh-token",
-    "RFA_GITHUB_LOGIN": "zetwhite",
-    "RFA_GITHUB_REPOS": REPO,
-    "GITHUB_MCP_TOKEN": "mcp-secret",
-}
-MCP_HEADERS = {"accept": "application/json, text/event-stream", "content-type": "application/json"}
-
-
-@pytest.fixture
-def mcp_client(tmp_path):
-    fake = FakeGithub(issues=[issue(7, "본문")], comments=[comment(10, 7, "@zetwhite 질문")])
-    app = create_app(
-        {**ENV, "RFA_DATA_DIR": str(tmp_path)}, GithubClient("t", transport=fake.transport())
-    )
-    with TestClient(app, base_url="http://127.0.0.1:8792") as client:
-        yield client
-
-
-def rpc(client, method, params=None, token="mcp-secret"):
-    headers = {**MCP_HEADERS, "authorization": f"Bearer {token}"}
-    body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
-    return client.post(MCP_PATH, headers=headers, json=body)
-
-
-def test_mcp_requires_bearer(mcp_client):
-    assert rpc(mcp_client, "tools/list", token="wrong").status_code == 401
-    res = mcp_client.post(MCP_PATH, headers=MCP_HEADERS, json={})
-    assert res.status_code == 401
-    assert res.json() == {"error": "unauthorized"}
-
-
-def test_mcp_lists_only_read_tools(mcp_client):
-    rpc(
-        mcp_client,
-        "initialize",
-        {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {},
-            "clientInfo": {"name": "t", "version": "0"},
-        },
-    )
-    tools = rpc(mcp_client, "tools/list").json()["result"]["tools"]
-    assert sorted(t["name"] for t in tools) == ["get_thread", "list_mentions"]
-    assert all(t["annotations"]["readOnlyHint"] for t in tools)
-
-
-def test_mcp_call_list_mentions(mcp_client):
-    res = rpc(
-        mcp_client,
-        "tools/call",
-        {"name": "list_mentions", "arguments": {"since": "2026-09-26T09:00:00Z"}},
-    )
-    result = res.json()["result"]
-    assert not result.get("isError")
-    mentions = result["structuredContent"]["result"]
-    assert [m["target"] for m in mentions] == [f"{REPO}#7"]
-
-
-def test_mcp_rejects_unknown_host(tmp_path):
-    fake = FakeGithub()
-    app = create_app(
-        {**ENV, "RFA_DATA_DIR": str(tmp_path)}, GithubClient("t", transport=fake.transport())
-    )
-    with TestClient(app, base_url="http://evil.example:8792") as client:
-        assert rpc(client, "tools/list").status_code in (400, 421)
-
-
-def test_server_requires_env():
-    with pytest.raises(RuntimeError, match="GITHUB_TOKEN"):
-        create_app({})
-    with pytest.raises(RuntimeError, match="GITHUB_MCP_TOKEN"):
-        create_app({k: v for k, v in ENV.items() if k != "GITHUB_MCP_TOKEN"})
-
-
-def test_approve_posts_final_body_to_github(tmp_path):
-    fake = FakeGithub()
-    publisher = GithubPublisher(
-        clearance_key="review-key", client=GithubClient("t", transport=fake.transport())
-    )
-    app = create_review_app(tmp_path, clearance_key="review-key", publisher=publisher)
-    human = TestClient(app, client=LOOPBACK)
-    rid = to_reviewed(human)
-
-    res = human.post(f"/reviews/{rid}/approve").json()
-
-    assert res["status"] == "posted"
-    assert res["posted_url"].endswith("#issuecomment-999")
-    assert fake.posted == [(OPEN["target"], f"{REDACT['redacted_body']}\n\n{BOT_MARKER}")]

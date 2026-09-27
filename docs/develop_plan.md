@@ -7,9 +7,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 1** (`step-01-contracts`) — 계약 모델·yaml·공유 문서 작성 중 |
-| 마지막 머지 | Step 9 (v1, PR #11) — v2 기준으로는 아직 없음 |
-| 다음 할 일 | Step 1 PR 올리기 → 사용자 리뷰·머지 → 사용자가 `git rm/mv`(아래 Step 2) 실행 → Step 2 |
+| 진행 중 단계 | **Step 2** (`step-02-reset`) — PR 리뷰 대기 |
+| 마지막 머지 | Step 1 (PR #15) |
+| 다음 할 일 | Step 2 PR 리뷰·머지 → Step 3 (approvals 서비스) |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
 ## 규칙
@@ -30,8 +30,8 @@
 
 | Step | 기능 | 브랜치 | 상태 |
 |---|---|---|---|
-| 1 | API 계약 확정 + 팀 공유 (`/ask`, `/approvals`) | `step-01-contracts` | 진행 중 |
-| 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | |
+| 1 | API 계약 확정 + 팀 공유 (`/ask`, `/approvals`) | `step-01-contracts` | 완료 (PR #15) |
+| 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | 리뷰 대기 |
 | 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | |
 | 4 | channels — GitHub 이식 + Slack (Socket Mode) | `step-04-channels` | |
 | 5 | workflow — LangGraph 그래프 | `step-05-workflow` | |
@@ -136,36 +136,21 @@ services/tests/test_contracts.py    모델 검증 + yaml properties ↔ 모델 �
 
 ## Step 2: 리셋 + 문서 + head_stub  (`step-02-reset`)
 
-**목표.** v1 에서 소관이 넘어갔거나 방향이 다른 코드를 걷어내고, 남길 것을 새 자리로 옮긴다.
+**목표.** v1 에서 소관이 넘어갔거나 방향이 다른 코드를 걷어내고, 남길 것을 새 자리로 옮긴다. 상세 내역은 `docs/migration.md`.
 
-**사용자가 먼저 실행** (권한 분류기가 Claude 의 `git rm` 을 막음):
-```
-git rm -r -q services/review services/mcp_channels/server.py contracts/review.openapi.yaml \
-  contracts/knowledge.openapi.yaml data/policy common/rfa_common/models.py \
-  workflow/rfa_workflow/nodes workflow/rfa_workflow/graph_public.py workflow/rfa_workflow/desk.py \
-  workflow/rfa_workflow/recovery.py workflow/rfa_workflow/mcp_entry.py \
-  workflow/rfa_workflow/prompts/censor_public.md workflow/rfa_workflow/prompts/style_public.md \
-  workflow/rfa_workflow/prompts/pick_task.md workflow/rfa_workflow/prompts/editor.md \
-  services/tests/test_approval.py services/tests/test_approval_web.py services/tests/test_clearance.py \
-  services/tests/test_policy.py services/tests/test_scanner.py services/tests/test_review_core.py \
-  services/tests/test_github.py services/tests/test_knowledge_stub.py services/tests/test_models.py \
-  services/tests/conftest.py services/tests/svc_support.py \
-  workflow/tests/test_desk.py workflow/tests/test_graph.py workflow/tests/test_recovery.py \
-  workflow/tests/test_llm_cli_entry.py workflow/tests/conftest.py \
-  docs/modules scripts/demo_host.sh
-git mv services/knowledge_stub services/head_stub
-git mv services/mcp_channels services/channels
-```
+**사용자가 먼저 실행한 것** (권한 분류기가 Claude 의 대량 `git rm` 을 막음): `services/review`, MCP 서버, v1 계약·모델·정책·그래프·테스트 삭제, `knowledge_stub → head_stub`, `mcp_channels → channels` 이동.
 
-**만들/고칠 파일.**
-- `docs/migration.md` (새): 지운 것·옮긴 것·남긴 것 표 + 이유, v1 모듈 → v2 모듈 대응표.
-- `docs/plan.md`, `docs/architecture.md` 재작성. `docs/setup.md`, `README.md` 갱신. `person/TODO.md` 커밋.
-- `services/head_stub/app.py`: `POST /ask` — 모든 task 폴더 문서를 합쳐 `rank.top_docs` 로 top-3. `task` 는 1위 문서의 폴더(`_task.yaml` 의 name). `feedback` 가 있으면 마지막 `reason` 의 토큰(`rank.tokenize`)과 겹치는 문장을 knowledge 에서 뺀다 (stub 규칙). 아무 문서도 안 맞으면 `task=null, refusal="관련 업무를 찾지 못했습니다"`.
-- `services/channels/github.py`: import 경로만 새 모델로 (기능 수정은 Step 4).
-- `services/pyproject.toml` packages → `head_stub, channels, approvals`. `workflow/` 는 임시로 `clients.py`·`llm.py`·`state.py`·`deps.py`·`cli.py` 만 남기고 import 가 깨지지 않게 최소 수정.
-- `.env.example`: RFA_CLEARANCE_KEY, GITHUB_MCP_*, RFA_MCP_*, REVIEW_URL, KNOWLEDGE_URL 제거 / HEAD_URL, APPROVALS_URL, SLACK_BOT_TOKEN, SLACK_APP_TOKEN, RFA_CHANNELS, RFA_PUBLISHER=mock|live, RFA_CORS_ORIGINS 추가.
+**Claude 가 한 것.**
+- `workflow/` 의 나머지 v1 파일(`cli`, `clients`, `deps`, `state`, `llm`, `__main__`, `prompts/`, `tests/wf_support.py`) 삭제 — 전부 지운 모듈을 import 해 깨진 상태. Step 5 에서 `git show 819053f:<경로>` 로 필요한 부분을 가져와 새로 쓴다. 패키지는 `__init__.py` 만 남김.
+- `services/head_stub/app.py`: `POST /ask`. 모든 task 의 문서를 질문과 키워드로 대조 → 1위 문서의 task 선택 → 그 task 상위 3문서의 문장을 knowledge 로. `feedback` 의 **모든** 사유 키워드가 든 문장은 뺀다 (라운드마다 누적). 맞는 문서가 없으면 `refusal="관련 업무를 찾지 못했습니다"`, 다 빠지면 task 는 두고 `refusal="거절 사유를 반영하면 답할 수 있는 내용이 없습니다"`. 검열은 하지 않는다.
+- `services/head_stub/loader.py`: `TaskInfo` 를 로컬 모델로, `Doc.task_id` 추가. 아무도 안 읽던 `summary`·`tags`·`source_line` 제거.
+- `services/channels/github.py`: 새 `Mention`(`channel=github`), `parse_target` 을 로컬로. 기능 변경 없음.
+- `services/pyproject.toml` packages → `head_stub, channels`. `mcp` 의존성 제거(서비스·워크플로 둘 다), 워크플로 CLI 진입점 제거. 루트 `testpaths` 에서 `workflow/tests` 제거 (Step 5 에서 다시 추가).
+- `.env.example`: 지금 코드가 읽는 키만 (`RFA_DATA_DIR`, `GITHUB_*`). 나머지는 그 키를 쓰는 단계에서 추가.
+- `scripts/run_services.sh`: head_stub(8791) 만 띄우도록 축소.
+- 문서: `docs/migration.md`(새), `docs/plan.md`·`docs/architecture.md`·`docs/setup.md`·`README.md` 재작성.
 
-**테스트.** `test_head_stub.py`(ask, task 선택, feedback 필터, refusal). 기존 `test_contracts.py` 통과 유지.
+**테스트.** `test_head_stub.py` (task 선택, 다른 task, 매치 없음, 거절 사유 반영, 사유 누적, 전부 빠짐, 채널/target 불일치 422, 문장 분리, loader, rank), `test_github.py` (v1 에서 MCP·서명 게시자 부분을 빼고 옮김 + `create_comment`·`from_env` 추가), `test_contracts.py` 유지.
 
 ## Step 3: approvals 서비스 + 참조 결재 웹  (`step-03-approvals`)
 
@@ -187,12 +172,12 @@ git mv services/mcp_channels services/channels
 ## Step 5: workflow — 그래프  (`step-05-workflow`)
 
 - `state.py`: mention, rejections, approval_id, task, knowledge, refusal, draft, outcome(`pending`|`failed`).
-- `clients.py`: `_Service` 재시도 골격 유지. `HeadClient.ask`, `ApprovalsClient.create/revise/list/get`.
+- `clients.py`: v1(`819053f`) `_Service._request` 의 재시도 로직을 가져와 `HeadClient.ask`, `ApprovalsClient.create/revise/list/get`.
 - `graph.py`: `intake`(같은 source_url 안건이 pending/approved/posted 면 건너뜀) → `ask_head` → `write` → `submit`(approval_id 있으면 revise, 없으면 create). 오류는 `outcome=failed` + 로그.
-- `llm.py`: `RuleLLM.text("writer")` — knowledge 문장을 붙이되 rejections 가 있으면 마지막 reason 토큰과 겹치는 문장 제거. `structured` 제거.
+- `llm.py`: v1(`819053f`) 의 `AnthropicLLM`·`prompt()`·`make_llm` 을 가져옴. `RuleLLM.text("writer")` — knowledge 문장을 붙이되 rejections 가 있으면 마지막 reason 토큰과 겹치는 문장 제거. `structured` 제거.
 - `prompts/writer.md` + `style_github.md` / `style_slack.md`.
 - `cli.py`: `run --mention-json`.
-- 테스트: FakeLLM + head_stub/approvals TestClient — 정상 pending, 거절 후 revise round 2, refusal, head 5xx 재시도 후 failed.
+- 테스트: FakeLLM(v1 `wf_support.py` 에서) + head_stub/approvals TestClient — 정상 pending, 거절 후 revise round 2, refusal, head 5xx 재시도 후 failed.
 
 ## Step 6: desk 상주 루프 + 스크립트 + E2E  (`step-06-desk`)
 

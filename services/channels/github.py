@@ -3,8 +3,8 @@
 멘션 찾기: 감시 레포(RFA_GITHUB_REPOS)의 이슈 본문과 이슈/PR 댓글을 읽어 @<login> 이 들어간 것만.
 (notifications API 는 fine-grained 토큰을 지원하지 않아 쓰지 않는다. 권한: Issues read/write)
 
-- list_mentions / get_thread : 읽기. MCP 툴로 노출 (server.py)
-- create_comment             : 쓰기. MCP 로 노출 안 함. GithubPublisher 가 clearance 검증 후 호출
+- MentionTracker.poll / get_thread : 읽기. desk 가 새 멘션을 가져올 때
+- create_comment                   : 쓰기. 결재 서버가 사람 승인 뒤에만 호출
 
 자기 답글 무시: 이 시스템이 게시하는 댓글은 GitHub 에 login 본인 이름으로 달린다. 그 댓글에 다시
 반응하지 않도록 게시할 때 화면에 안 보이는 BOT_MARKER 를 붙이고, 멘션을 찾을 때 그 글만 건너뛴다.
@@ -20,9 +20,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
-from rfa_common.models import Channel, Mention, parse_target
+from rfa_common.contracts import ChannelKind, Mention
 
-from mcp_channels.models import Thread, ThreadComment
+from channels.models import Thread, ThreadComment
 
 API_URL = "https://api.github.com"
 PAGE_SIZE = 100
@@ -34,6 +34,12 @@ SEEN_LIMIT = 500
 
 class GithubError(Exception):
     """GitHub API 가 2xx 가 아닌 응답을 줬다."""
+
+
+def parse_target(target: str) -> tuple[str, int]:
+    """ "owner/repo#34" → ("owner/repo", 34). 형식은 Mention 이 검증한다."""
+    repo, _, number = target.partition("#")
+    return repo, int(number)
 
 
 @dataclass(frozen=True)
@@ -111,7 +117,7 @@ class GithubClient:
         )
 
     def create_comment(self, target: str, body: str) -> str:
-        """댓글을 달고 html_url 을 돌려준다. 호출 전에 반드시 clearance 를 검증할 것.
+        """댓글을 달고 html_url 을 돌려준다. 사람이 승인한 본문만 넘길 것.
 
         본문 끝에 BOT_MARKER 를 붙여 이후 멘션 검색에서 자기 답글을 거른다.
         """
@@ -146,7 +152,7 @@ def find_mentions(
             return
         found.append(
             Mention(
-                channel=Channel.PUBLIC,
+                channel=ChannelKind.GITHUB,
                 target=f"{repo}#{number}",
                 author=author,
                 text=body,
