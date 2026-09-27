@@ -23,13 +23,13 @@ GitHub 봇에 PAT이 필요하듯, Slack에서 프로그램이 메시지를 읽�
 
 ### 1-2. 앱 생성
 
-- [ ] https://api.slack.com/apps 접속
-- [ ] `Create New App` → `From scratch`
-- [ ] App Name: `rfa-desk`, 워크스페이스: 위에서 정한 것
+- [x] https://api.slack.com/apps 접속
+- [x] `Create New App` → `From scratch`
+- [x] App Name: `rfa-desk`, 워크스페이스: 위에서 정한 것
 
 ### 1-3. 권한 주기
 
-- [ ] 왼쪽 메뉴 `OAuth & Permissions` → `Scopes` → **`User Token Scopes`** → `Add an OAuth Scope`
+- [x] 왼쪽 메뉴 `OAuth & Permissions` → `Scopes` → **`User Token Scopes`** → `Add an OAuth Scope`
       (`Bot Token Scopes` 아님 — 그쪽은 비워 둡니다)
 
   | scope | 왜 필요한가 |
@@ -43,44 +43,47 @@ GitHub 봇에 PAT이 필요하듯, Slack에서 프로그램이 메시지를 읽�
 
 ### 1-4. 설치하고 유저 토큰 받기
 
-- [ ] 같은 화면 위쪽 `Install to Workspace` → `허용`
-- [ ] `User OAuth Token` 복사 — **`xoxp-` 로 시작** (`xoxb-` 봇 토큰이 아닙니다)
+- [x] 같은 화면 위쪽 `Install to Workspace` → `허용`
+- [x] `User OAuth Token` 복사 — **`xoxp-` 로 시작** (`xoxb-` 봇 토큰이 아닙니다)
 
 ### 1-5. Socket Mode 켜고 앱 토큰 받기
 
 공개 URL(ngrok) 없이 로컬에서 Slack 이벤트를 받기 위한 설정입니다.
 
-- [ ] 왼쪽 메뉴 `Socket Mode` → `Enable Socket Mode` 켜기
-- [ ] 토큰 이름을 물어보면 아무거나 (예: `rfa-socket`), scope는 `connections:write`
-- [ ] 생성된 `App-Level Token` 복사 — **`xapp-` 로 시작**
+- [x] 왼쪽 메뉴 `Socket Mode` → `Enable Socket Mode` 켜기
+- [x] 토큰 이름을 물어보면 아무거나 (예: `rfa-socket`), scope는 `connections:write`
+- [x] 생성된 `App-Level Token` 복사 — **`xapp-` 로 시작**
 
 ### 1-6. 이벤트 구독
 
-- [ ] 왼쪽 메뉴 `Event Subscriptions` → `Enable Events` 켜기
-- [ ] **`Subscribe to events on behalf of users`** 에 추가 (`Subscribe to bot events` 아님):
+- [x] 왼쪽 메뉴 `Event Subscriptions` → `Enable Events` 켜기
+- [x] **`Subscribe to events on behalf of users`** 에 추가 (`Subscribe to bot events` 아님):
   - `message.im` (나에게 온 DM)
   - `message.channels` (내가 속한 공개 채널의 메시지 — 코드가 `@나` 멘션만 골라냄)
   - `message.groups` (내가 속한 비공개 채널의 메시지)
-- [ ] 저장하라고 하면 저장, 앱 재설치하라고 하면 재설치
+- [x] 저장하라고 하면 저장, 앱 재설치하라고 하면 재설치
 
 ### 1-7. 테스트 채널과 상대 계정
 
 봇을 초대할 필요는 없습니다 — 내가 들어가 있는 채널이면 됩니다.
 
-- [ ] 테스트할 채널을 하나 만들고 (예: `#rfa-test`) 내가 들어가 있는지 확인
-- [ ] **나에게 DM/멘션을 보내 줄 다른 계정 확보** — 팀원을 워크스페이스에 초대하거나,
-      다른 이메일로 두 번째 계정 생성 (내가 나를 멘션해도 동작은 하지만 데모 그림이 안 삽니다)
+- [x] 테스트할 채널을 하나 만들고 (예: `#rfa-test`) 내가 들어가 있는지 확인
+- [ ] **나에게 DM/멘션을 보내 줄 다른 계정 확보 (필수)** — 팀원을 워크스페이스에 초대하거나,
+      다른 이메일로 두 번째 계정 생성.
+      비서는 **내가 보낸 메시지를 전부 무시**합니다 (비서 답글도 내 이름으로 달려서, 이 규칙으로 자기 답글
+      루프를 막습니다). 그래서 Slack 에서는 내가 나를 멘션하거나 나에게 DM 해도 **받지 않습니다**.
+      (GitHub 는 비서 답글에만 숨김 표시를 붙이므로 셀프 멘션도 동작합니다)
 
 ### 1-8. 토큰 전달
 
-- [ ] `.env` 에 아래 두 줄 추가 (`.env` 는 gitignore 되어 있어 커밋되지 않습니다)
+- [x] `.env` 에 아래 두 줄 추가 (`.env` 는 gitignore 되어 있어 커밋되지 않습니다)
 
 ```
 SLACK_USER_TOKEN=xoxp-...
 SLACK_APP_TOKEN=xapp-...
 ```
 
-- [ ] 추가했다고 알려주세요. 토큰 값 자체는 채팅에 붙여넣지 마세요
+- [x] 추가했다고 알려주세요. 토큰 값 자체는 채팅에 붙여넣지 마세요
 
 ---
 

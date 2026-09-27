@@ -48,13 +48,18 @@ def test_deps_from_env_reads_urls_and_llm_mode():
 def test_desk_once_processes_mentions(env, capsys, caplog):
     class OneShot:
         kind = "github"
+        started = False
+
+        def start(self):
+            self.started = True
 
         def poll(self):
             return [github_mention()]
 
+    channel = OneShot()
     with caplog.at_level("INFO"):
-        code = main(["desk", "--once"], env.deps(RuleLLM()), {"github": OneShot()})
-    assert code == 0
+        code = main(["desk", "--once"], env.deps(RuleLLM()), {"github": channel})
+    assert code == 0 and channel.started
     assert env.approval(1)["status"] == "pending"
     assert "desk 시작: 채널 github" in caplog.text
     assert "안건 #1" in caplog.text

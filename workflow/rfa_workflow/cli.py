@@ -67,11 +67,15 @@ def run_desk(
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S"
     )
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # 요청마다 찍히는 줄은 desk 로그를 가린다
+    # 요청마다 찍히는 줄·소켓 세션 알림은 desk 로그를 가린다
+    for noisy in ("httpx", "slack_sdk"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     channels = make_channels(os.environ) if channels is None else channels
     if not channels:
         logging.warning("RFA_CHANNELS 가 비어 있음 — 새 멘션은 받지 않고 거절된 안건만 처리")
     logging.info("desk 시작: 채널 %s, %s초마다", ", ".join(channels) or "없음", interval)
+    for channel in channels.values():
+        channel.start()  # Slack 소켓 연결 등. 설정 오류는 여기서 바로 드러난다
     try:
         Desk(channels, deps).run_forever(interval, ticks=1 if once else None)
     except KeyboardInterrupt:
