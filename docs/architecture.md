@@ -40,7 +40,7 @@
 │  Slack   │◄────►│              ▼   Mention          ▼                       │
 │ @rfa-desk│ 소켓 │  ┌───────────────────────────────────────────────────┐  │
 └──────────┘      │  │  LangGraph  graph.py  (대응 에이전트, 채널 무관)     │  │
-                  │  │   intake → ask_head → write(LLM) → submit          │  │
+                  │  │   ask_head → write(LLM) → submit                   │  │
                   │  └──────┬──────────────────────────────┬─────────────┘  │
                   │         │ POST /ask                     │ POST /approvals │
                   │         ▼                               ▼                 │
@@ -63,9 +63,10 @@
 | `contracts/approvals.openapi.yaml` | 프런트·desk → 결재 서버 | 1 |
 | `services/head_stub/` | `POST /ask` stub | 2 |
 | `services/channels/github.py` | GitHub 멘션 찾기(폴링), 스레드 읽기, 댓글 달기 | 2 (Step 4 에서 공통 인터페이스) |
-| `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 4 |
+| `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 7 |
 | `services/approvals/` | 결재 서버 + 참조 웹 | 3 |
-| `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 | 5 |
+| `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 (`run`, 거절 안건 `redo`) | 5 |
+| `workflow/rfa_workflow/llm.py`, `prompts/` | 초안 작성 LLM (Claude, fallback 켬) 과 채널별 말투 | 5 |
 | `workflow/rfa_workflow/desk.py` | 상주 루프 | 6 |
 
 ## 3. 흐름: Slack 에서 "@rfa-desk ORBIT 벤치마크 어때?"
@@ -92,7 +93,7 @@
 - 게시는 결재 서버만 한다. desk 에는 게시 경로가 없다 (채널의 `post()` 를 부르는 곳은 approvals 뿐).
 - 결재 API 에는 인증이 없다. 에이전트가 승인을 부르지 못하게 막는 것은 샌드박스 네트워크 정책(다영님).
 - 그래프는 요청 사이에 기억을 남기지 않는다 (실행마다 새 상태). 앞 요청의 지식이 다른 채널의 답에 섞이지 않는다.
-- 게시한 GitHub 답글에는 보이지 않는 `<!-- rfa-bot -->` 표시를 붙여, 멘션 폴링이 자기 답글에 다시 반응하지 않게 한다. Slack 은 봇 자신의 메시지를 이벤트에서 거른다 (Step 4).
+- 게시한 GitHub 답글에는 보이지 않는 `<!-- rfa-bot -->` 표시를 붙여, 멘션 폴링이 자기 답글에 다시 반응하지 않게 한다. Slack 은 봇 자신의 메시지를 이벤트에서 거른다 (Step 7).
 
 ## 5. 팀 통합
 
