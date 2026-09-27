@@ -3,8 +3,8 @@
 멘션 찾기: 감시 레포(RFA_GITHUB_REPOS)의 이슈 본문과 이슈/PR 댓글을 읽어 @<login> 이 들어간 것만.
 (notifications API 는 fine-grained 토큰을 지원하지 않아 쓰지 않는다. 권한: Issues read/write)
 
-- MentionTracker.poll / get_thread : 읽기. desk 가 새 멘션을 가져올 때
-- create_comment                   : 쓰기. 결재 서버가 사람 승인 뒤에만 호출
+- GithubChannel.poll : 읽기. desk 가 새 멘션을 가져올 때 (MentionTracker + 스레드 맥락)
+- GithubChannel.post : 쓰기. 결재 서버가 사람 승인 뒤에만 호출
 
 자기 답글 무시: 이 시스템이 게시하는 댓글은 GitHub 에 login 본인 이름으로 달린다. 그 댓글에 다시
 반응하지 않도록 게시할 때 화면에 안 보이는 BOT_MARKER 를 붙이고, 멘션을 찾을 때 그 글만 건너뛴다.
@@ -15,24 +15,24 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
-from rfa_common.contracts import ChannelKind, Mention
+from rfa_common.contracts import ChannelKind, Mention, ThreadMessage
 
-from channels.models import Thread, ThreadComment
+from channels.base import CONTEXT_LIMIT, ChannelError
 
 API_URL = "https://api.github.com"
 PAGE_SIZE = 100
-THREAD_COMMENTS = 10
 DEFAULT_LOOKBACK = timedelta(hours=24)
 BOT_MARKER = "<!-- rfa-bot -->"
 SEEN_LIMIT = 500
 
 
-class GithubError(Exception):
+class GithubError(ChannelError):
     """GitHub API 가 2xx 가 아닌 응답을 줬다."""
 
 
@@ -49,7 +49,7 @@ class GithubConfig:
     repos: tuple[str, ...]
 
     @classmethod
-    def from_env(cls, env: dict[str, str]) -> GithubConfig:
+    def from_env(cls, env: Mapping[str, str]) -> GithubConfig:
         missing = [
             k for k in ("GITHUB_TOKEN", "RFA_GITHUB_LOGIN", "RFA_GITHUB_REPOS") if not env.get(k)
         ]
@@ -72,8 +72,15 @@ class GithubClient:
             timeout=15,
         )
 
+    def _send(self, method: str, path: str, **kwargs: object) -> httpx.Response:
+        """네트워크 오류도 GithubError 로 바꿔, 호출하는 쪽이 채널 오류 하나만 다루게 한다."""
+        try:
+            return self._http.request(method, path, **kwargs)
+        except httpx.TransportError as exc:
+            raise GithubError(f"{method} {path}: {type(exc).__name__}") from exc
+
     def _get(self, path: str, **params: object) -> list | dict:
-        res = self._http.get(path, params=params)
+        res = self._send("GET", path, params=params)
         if res.is_error:
             raise GithubError(f"GET {path}: {res.status_code} {res.text[:200]}")
         return res.json()
@@ -92,29 +99,28 @@ class GithubClient:
             per_page=PAGE_SIZE,
         )
 
-    def get_thread(self, target: str) -> Thread:
+    def thread(self, target: str, exclude_url: str) -> list[ThreadMessage]:
+        """이슈 본문(제목 포함)과 댓글 중 최근 CONTEXT_LIMIT 개, 오래된 순. 댓글은 첫 100개만 본다.
+
+        exclude_url 인 글(멘션 자신)은 뺀다. 우리가 단 답글은 BOT_MARKER 만 지우고 남긴다
+        (이미 뭐라고 답했는지도 맥락이다).
+        """
         repo, number = parse_target(target)
         issue = self._get(f"/repos/{repo}/issues/{number}")
-        comments = self._get(f"/repos/{repo}/issues/{number}/comments", per_page=PAGE_SIZE)[
-            -THREAD_COMMENTS:
+        comments = self._get(f"/repos/{repo}/issues/{number}/comments", per_page=PAGE_SIZE)
+        posts = [
+            (issue, f"{issue['title']}\n{issue.get('body') or ''}".strip()),
+            *((c, c.get("body") or "") for c in comments),
         ]
-        return Thread(
-            target=target,
-            title=issue["title"],
-            body=issue.get("body") or "",
-            state=issue["state"],
-            author=issue["user"]["login"],
-            url=issue["html_url"],
-            comments=[
-                ThreadComment(
-                    author=c["user"]["login"],
-                    body=c.get("body") or "",
-                    created_at=c["created_at"],
-                    url=c["html_url"],
-                )
-                for c in comments
-            ],
-        )
+        return [
+            ThreadMessage(
+                author=item["user"]["login"],
+                text=text.replace(BOT_MARKER, "").strip(),
+                at=item["created_at"],
+            )
+            for item, text in posts
+            if item["html_url"] != exclude_url
+        ][-CONTEXT_LIMIT:]
 
     def create_comment(self, target: str, body: str) -> str:
         """댓글을 달고 html_url 을 돌려준다. 사람이 승인한 본문만 넘길 것.
@@ -123,7 +129,7 @@ class GithubClient:
         """
         repo, number = parse_target(target)
         marked = f"{body}\n\n{BOT_MARKER}"
-        res = self._http.post(f"/repos/{repo}/issues/{number}/comments", json={"body": marked})
+        res = self._send("POST", f"/repos/{repo}/issues/{number}/comments", json={"body": marked})
         if res.is_error:
             raise GithubError(f"POST comment {target}: {res.status_code} {res.text[:200]}")
         return res.json()["html_url"]
@@ -201,3 +207,38 @@ class MentionTracker:
         payload = {"since": started.isoformat(), "seen": seen[-SEEN_LIMIT:]}
         self._path.write_text(json.dumps(payload), encoding="utf-8")
         return fresh
+
+
+@dataclass
+class GithubChannel:
+    """Channel 구현. 멘션 폴링 + 스레드 맥락, 댓글 게시."""
+
+    client: GithubClient
+    config: GithubConfig
+    tracker: MentionTracker
+    kind: ChannelKind = ChannelKind.GITHUB
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str], state_dir: Path) -> GithubChannel:
+        config = GithubConfig.from_env(env)
+        return cls(
+            GithubClient(config.token), config, MentionTracker(state_dir / "mentions_seen.json")
+        )
+
+    def poll(self) -> list[Mention]:
+        """새 멘션에 스레드 맥락을 붙인다. 맥락을 못 읽으면 맥락 없이 돌려준다.
+
+        MentionTracker 는 돌려준 멘션을 바로 '봤음' 으로 기록한다 (at-most-once).
+        맥락 조회 실패로 멘션을 잃지 않도록 여기서는 오류를 삼킨다.
+        """
+        mentions = self.tracker.poll(self.client, self.config)
+        return [m.model_copy(update={"context": self._context(m)}) for m in mentions]
+
+    def _context(self, m: Mention) -> list[ThreadMessage]:
+        try:
+            return self.client.thread(m.target, exclude_url=str(m.url))
+        except GithubError:
+            return []
+
+    def post(self, target: str, body: str) -> str:
+        return self.client.create_comment(target, body)
