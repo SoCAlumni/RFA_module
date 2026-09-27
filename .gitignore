@@ -22,3 +22,7 @@ dist/
 
 # 생성 문서 (scripts/build_api_docs.sh)
 _site/
+
+# 편집기 임시 파일 (.env 스왑에 비밀값이 남을 수 있음)
+*.swp
+*~

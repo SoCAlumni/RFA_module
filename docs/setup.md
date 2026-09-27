@@ -24,7 +24,12 @@
 ```bash
 # 1. 호스트 서비스
 cp .env.example .env && $EDITOR .env
-./scripts/run_services.sh          # review(8790) + knowledge_stub(8791) + mcp_channels(8792), TLS는 caddy/mkcert 프록시
+./scripts/run_services.sh          # review(8790, 결재 웹) + knowledge_stub(8791) + github MCP(8792). Ctrl+C 로 종료
+                                   # 포트가 이미 쓰이면 바로 멈춘다. 로그: data/state/logs/
+
+# 1-1. 샌드박스 없이 호스트에서 전체 흐름 (Step 9)
+RFA_LLM_MODE=anthropic ./scripts/demo_host.sh   # 새 멘션 → 워크플로 → 결재 대기. 브라우저 http://127.0.0.1:8790/ 에서 승인
+# 키 없이 흐름만 보려면 RFA_LLM_MODE=mock
 
 # 2. 샌드박스 (레포 파일만으로 새로 만듦, 기존 my-assistant는 건드리지 않음)
 ./scripts/setup_sandbox.sh

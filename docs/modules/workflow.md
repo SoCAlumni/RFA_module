@@ -111,6 +111,7 @@ editor 기준(프롬프트): 질문에 답했는가, sources에 없는 사실을
 ## 실행과 노출
 
 - CLI: `python -m rfa_workflow run --mention-file m.json [--hint "..."]` (또는 `--mention-json`). 결과 `{review_id, outcome, summary, recoveries}` 한 줄 JSON.
+- 호스트 데스크: `python -m rfa_workflow desk-once` (`scripts/demo_host.sh`). GitHub MCP(`GITHUB_MCP_URL`, `GITHUB_MCP_TOKEN`)의 `list_mentions` 로 새 멘션을 받아 하나씩 `run`. public-desk 대신 호스트에서 전체를 돌릴 때(Step 9)와, 샌드박스 연결이 막혔을 때의 대안. `returned` 는 다시 부르지 않고 보고만 한다(LLM supervisor 가 없으므로).
 - stdio MCP (`python -m rfa_workflow.mcp_entry`): 툴 `run(mention, hint?) -> RunResult`. OpenClaw public-desk 가 부른다(Step 10, nemoclaw `mcp add` 는 HTTP 전용이라 openclaw config 로 직접 등록). 안 되면 exec 스킬로 CLI 를 부르는 2안.
 
 ## 파일 구조
@@ -128,10 +129,11 @@ workflow/
 │  ├─ clients.py              # ReviewClient, KnowledgeClient (재시도, 409 해소)
 │  ├─ recovery.py             # RecoveryBudget (실행당 복구 합계 상한)
 │  ├─ prompts/ pick_task.md, writer.md, style_public.md, editor.md, censor_public.md
-│  ├─ cli.py, __main__.py
+│  ├─ cli.py, __main__.py       # run / desk-once
+│  ├─ desk.py                 # 호스트 데스크: McpTools(최소 JSON-RPC) + poll_once
 │  └─ mcp_entry.py
 └─ tests/  wf_support.py(FakeLLM, FlakyHttp 장애 주입, 실제 review·knowledge 앱을 프로세스 안에서),
-          test_graph.py, test_recovery.py, test_llm_cli_entry.py
+          test_graph.py, test_recovery.py, test_llm_cli_entry.py, test_desk.py
 ```
 
 ## 다른 모듈과의 연결

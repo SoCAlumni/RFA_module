@@ -26,7 +26,7 @@
 | 5 | clearance + 결재 (approve/reject) | 완료 (PR #7) |
 | 6 | 알람/결재 웹 | 완료 (PR #8) |
 | 7 | github MCP | 완료 (PR #9) |
-| 8 | rfa_workflow (LangGraph) | |
+| 8 | rfa_workflow (LangGraph) | 완료 (PR #10) |
 | 9 | 호스트 E2E | |
 | 10 | 샌드박스 재현 | |
 | 11 | 샌드박스 E2E + README | |
@@ -254,7 +254,7 @@ workflow/tests/test_graph.py, fixtures/
 
 ## Step 9: 호스트 E2E
 
-**목표.** 샌드박스 없이 전체 흐름. `scripts/run_services.sh`, `scripts/demo_host.sh`(멘션 JSON → `python -m rfa_workflow run`). 실제 LLM은 호스트 `ANTHROPIC_API_KEY`.
+**목표.** 샌드박스 없이 전체 흐름. `scripts/run_services.sh`(서비스 3개), `scripts/demo_host.sh`(= `python -m rfa_workflow desk-once`: GitHub MCP 의 새 멘션 → 워크플로). public-desk 역할을 호스트 데스크(`rfa_workflow/desk.py`)가 대신한다. 실제 LLM은 호스트 `ANTHROPIC_API_KEY`.
 
 **완료 조건.** 테스트 이슈 멘션 → 알람 → 승인 → 수정본 게시. PR에 로그와 스크린샷.
 
