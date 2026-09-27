@@ -27,6 +27,14 @@ DRAFT = {
         {"round": 2, "verdict": "pass"},
     ],
 }
+_urls = iter(range(1000, 100000))
+
+
+def fresh_open() -> dict:
+    """멘션 URL 이 매번 다른 OPEN (같은 URL 이면 같은 문서가 돌아오므로)."""
+    return {**OPEN, "source_url": f"{OPEN['source_url']}#issuecomment-{next(_urls)}"}
+
+
 REDACT = {
     "verdict": "redact",
     "redacted_body": "양자화 후 정확도가 소폭 하락했어요.",
@@ -45,7 +53,7 @@ def as_actor(who: str) -> dict[str, str]:
 
 
 def open_review(client: TestClient) -> int:
-    res = client.post("/reviews", json=OPEN, headers=as_actor("intake"))
+    res = client.post("/reviews", json=fresh_open(), headers=as_actor("intake"))
     assert res.status_code == 201
     return res.json()["id"]
 
@@ -175,7 +183,7 @@ def test_state_survives_restart_and_ids_continue(tmp_path):
 
     second = TestClient(create_app(tmp_path))
     assert second.get(f"/reviews/{rid}").json()["status"] == "knowledge_ready"
-    assert second.post("/reviews", json=OPEN).json()["id"] == rid + 1
+    assert second.post("/reviews", json=fresh_open()).json()["id"] == rid + 1
     assert list((tmp_path / "state").glob("*.tmp")) == []
 
 
@@ -201,7 +209,7 @@ def test_draft_is_scanned_with_repo_rules(tmp_path):
 def test_advance_saves_nothing_when_a_later_step_fails(tmp_path):
     """첫 Step 은 허용되어 문서를 고치지만 두 번째 Step 이 막히면, 파일은 한 글자도 안 바뀐다."""
     store = ReviewStore(tmp_path)
-    rid = store.create(OpenReviewRequest.model_validate(OPEN), who="intake").id
+    rid = store.create(OpenReviewRequest.model_validate(OPEN), who="intake")[0].id
     store.advance(
         rid,
         Step(
@@ -238,7 +246,19 @@ def test_advance_saves_nothing_when_a_later_step_fails(tmp_path):
 
 def test_concurrent_creates_get_unique_ids(tmp_path):
     store = ReviewStore(tmp_path)
-    req = OpenReviewRequest.model_validate(OPEN)
+    reqs = [OpenReviewRequest.model_validate(fresh_open()) for _ in range(40)]
     with ThreadPoolExecutor(max_workers=8) as pool:
-        ids = list(pool.map(lambda _: store.create(req, who="t").id, range(40)))
+        ids = list(pool.map(lambda r: store.create(r, who="t")[0].id, reqs))
     assert sorted(ids) == list(range(1, 41))
+
+
+def test_same_mention_returns_existing_review(client):
+    first = client.post("/reviews", json=OPEN, headers=as_actor("intake"))
+    again = client.post("/reviews", json={**OPEN, "question": "보완된 질문"})
+    other = client.post("/reviews", json=fresh_open())
+
+    assert (first.status_code, again.status_code, other.status_code) == (201, 200, 201)
+    assert again.json()["id"] == first.json()["id"]
+    assert again.json()["question"] == OPEN["question"]  # 기존 문서 그대로
+    assert len(again.json()["events"]) == 1
+    assert other.json()["id"] == first.json()["id"] + 1

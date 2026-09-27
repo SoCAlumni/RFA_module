@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, Request
+from fastapi import Depends, FastAPI, Header, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from rfa_common.models import (
@@ -102,8 +102,11 @@ def create_app(
         )
 
     @app.post("/reviews", status_code=201, response_model=Review)
-    def open_review(req: OpenReviewRequest, who: Actor = "unknown") -> Review:
-        return store.create(req, who=who)
+    def open_review(req: OpenReviewRequest, response: Response, who: Actor = "unknown") -> Review:
+        review, created = store.create(req, who=who)
+        if not created:
+            response.status_code = 200  # 같은 멘션의 문서가 이미 있음
+        return review
 
     @app.get("/reviews", response_model=list[Review])
     def list_reviews(status: ReviewStatus | None = None) -> list[Review]:

@@ -8,7 +8,7 @@
 
 | 메서드 | 경로 | 호출자 | 전이 | 설명 |
 |---|---|---|---|---|
-| POST | `/reviews` | LangGraph intake | → `opened` | `{channel, target, question, requester, source_url}` |
+| POST | `/reviews` | LangGraph intake | → `opened` | `{channel, target, question, requester, source_url}`. **멱등**: 같은 `source_url`의 문서가 있으면 새로 만들지 않고 기존 문서를 200 으로 돌려준다(재시도·supervisor 재요청 중복 방지) |
 | GET | `/reviews?status=` | 웹, UI, desk | — | 목록 |
 | GET | `/reviews/{id}` | 모두 | — | 문서 전체 (events 포함) |
 | POST | `/reviews/{id}/knowledge` | LangGraph | `opened → knowledge_ready` | `{answer, sources[]}` |
@@ -100,7 +100,7 @@ services/review/
 ├─ store.py          # json 파일 저장(tmp→rename), 전이표 ALLOWED, advance(*Step)
 ├─ scanner.py        # 규칙 기반 비밀값 스캔
 ├─ policy.py         # official/personal/feedback 읽기
-(모델은 services/rfa_common/models.py 공용)
+(모델은 common/rfa_common/models.py 공용)
 ├─ clearance.py      # (Step 5)
 ├─ publisher.py      # 승인 후 채널별 게시 (github → mcp_channels 내부 함수 호출)
 └─ static/index.html

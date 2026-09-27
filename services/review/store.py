@@ -64,8 +64,15 @@ class ReviewStore:
         self._dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
 
-    def create(self, req: OpenReviewRequest, *, who: str) -> Review:
+    def create(self, req: OpenReviewRequest, *, who: str) -> tuple[Review, bool]:
+        """새 문서를 연다. 같은 source_url(같은 멘션)의 문서가 있으면 그걸 돌려준다.
+
+        bool 은 새로 만들었는지. 재시도나 supervisor 재요청이 문서를 중복 생성하지 않게 한다.
+        """
         with self._lock:
+            for existing in self.list():
+                if existing.source_url == req.source_url:
+                    return existing, False
             review = Review(
                 id=self._next_id(),
                 status=S.OPENED,
@@ -73,7 +80,7 @@ class ReviewStore:
                 events=[Event(at=_now(), who=who, what=S.OPENED)],
             )
             self._write(review)
-            return review
+            return review, True
 
     def get(self, review_id: int) -> Review:
         path = self._path(review_id)

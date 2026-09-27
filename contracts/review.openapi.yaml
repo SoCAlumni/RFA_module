@@ -16,7 +16,7 @@ paths:
   /reviews:
     post:
       operationId: openReview
-      summary: 결재 문서 개설 (→ opened)
+      summary: 결재 문서 개설 (→ opened). 같은 source_url 의 문서가 있으면 새로 만들지 않고 그걸 돌려준다(멱등)
       parameters: [{ $ref: "#/components/parameters/Actor" }]
       requestBody:
         required: true
@@ -26,6 +26,11 @@ paths:
       responses:
         "201":
           description: 생성된 문서
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Review" }
+        "200":
+          description: 같은 멘션(source_url)의 기존 문서. 상태는 그대로이며 본문은 바꾸지 않는다
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Review" }

@@ -1,6 +1,5 @@
 import pytest
-
-TEST_CLEARANCE_KEY = "test-clearance-key"
+from svc_support import TEST_CLEARANCE_KEY
 
 
 @pytest.fixture(autouse=True)

@@ -2,12 +2,12 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import TEST_CLEARANCE_KEY
 from fastapi.testclient import TestClient
 from review.app import create_app
 from review.clearance import verify
 from review.publisher import MockPublisher
-from test_review_core import DRAFT, KNOWLEDGE, OPEN, REDACT
+from svc_support import TEST_CLEARANCE_KEY
+from test_review_core import DRAFT, KNOWLEDGE, OPEN, REDACT, fresh_open
 
 LOOPBACK = ("127.0.0.1", 40000)
 
@@ -25,7 +25,7 @@ def setup(tmp_path: Path, publisher: MockPublisher) -> tuple[TestClient, TestCli
 
 
 def to_reviewed(client: TestClient, verdict: dict = REDACT, draft: dict = DRAFT) -> int:
-    rid = client.post("/reviews", json=OPEN).json()["id"]
+    rid = client.post("/reviews", json=fresh_open()).json()["id"]
     assert client.post(f"/reviews/{rid}/knowledge", json=KNOWLEDGE).status_code == 200
     assert client.post(f"/reviews/{rid}/draft", json=draft).status_code == 200
     assert client.post(f"/reviews/{rid}/verdict", json=verdict).status_code == 200
