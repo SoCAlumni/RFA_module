@@ -7,9 +7,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 2** (`step-02-reset`) — PR 리뷰 대기 |
-| 마지막 머지 | Step 1 (PR #15) |
-| 다음 할 일 | Step 2 PR 리뷰·머지 → Step 3 (approvals 서비스) |
+| 진행 중 단계 | **Step 3** (`step-03-approvals`) — PR 리뷰 대기 |
+| 마지막 머지 | Step 2 (PR #16) |
+| 다음 할 일 | Step 3 PR 리뷰·머지 → Step 4 (GitHub·Slack 채널). Slack 토큰이 `.env` 에 있어야 실연동 확인 가능 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
 ## 규칙
@@ -31,8 +31,8 @@
 | Step | 기능 | 브랜치 | 상태 |
 |---|---|---|---|
 | 1 | API 계약 확정 + 팀 공유 (`/ask`, `/approvals`) | `step-01-contracts` | 완료 (PR #15) |
-| 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | 리뷰 대기 |
-| 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | |
+| 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | 완료 (PR #16) |
+| 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | 리뷰 대기 |
 | 4 | channels — GitHub 이식 + Slack (Socket Mode) | `step-04-channels` | |
 | 5 | workflow — LangGraph 그래프 | `step-05-workflow` | |
 | 6 | desk 상주 루프 + 스크립트 + E2E | `step-06-desk` | |
@@ -60,7 +60,7 @@
 
 | | 실행 명령 | 포트 | 역할 | 비고 |
 |---|---|---|---|---|
-| A. 결재 서버 (`approvals`) | `uvicorn approvals.app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름 |
+| A. 결재 서버 (`approvals`) | `uvicorn --factory approvals.app:create_app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름 |
 | B. 지식 서버 (`head_stub`) | `uvicorn head_stub.app --port 8791` | 8791 | `POST /ask` 하나. `data/knowledge/` 검색해 답 | 민섭님 head agent 오면 안 켬 (`HEAD_URL` 변경) |
 | C. desk | `python -m rfa_workflow desk` | 없음 | 5초마다 GitHub/Slack 확인 → `graph.py`(LangGraph) 실행 → B 에 지식 요청, A 에 안건 제출. A 의 거절 안건 폴링해 재작성 | 요청을 받지 않고 보내기만 함. LangGraph 는 이 안에서 함수로 실행 |
 
@@ -154,11 +154,12 @@ services/tests/test_contracts.py    모델 검증 + yaml properties ↔ 모델 �
 
 ## Step 3: approvals 서비스 + 참조 결재 웹  (`step-03-approvals`)
 
-- `store.py`: v1 `review/store.py` 의 골격(안건 하나 = `data/state/approval-<id>.json`, tmp+rename 원자적 쓰기, `Step`/`ALLOWED` 전이표, `source_url` 멱등 create) 을 위 상태기계로 축소. `list(status, channel, task)`, `summary()`.
-- `app.py`: FastAPI + `CORSMiddleware`(`RFA_CORS_ORIGINS`, 기본 `*`). 엔드포인트는 `docs/contracts.md`. `/approvals/summary` 를 `/approvals/{id}` 보다 먼저 등록.
-- `publisher.py`: `Publisher` Protocol + `MockPublisher`(기록만). live 는 Step 4.
-- `static/index.html`: v1 결재 웹 축소 — 목록(status 배지) · 상세(질문·스레드·knowledge·초안·거절 이력) · 승인 / 거절+사유.
-- 테스트: 상태 전이(정상·409·3회 거절 closed·게시 실패 502), 멱등 생성, 필터·summary, CORS 헤더.
+- `store.py`: v1 `review/store.py` 의 골격(안건 하나 = `<RFA_DATA_DIR>/state/approval-<id>.json`, tmp+rename 원자적 쓰기, `Step`/`ALLOWED` 전이표, `source_url` 멱등 create) 을 위 상태기계로 축소. `list(status, channel, task)` 는 updated_at 최신순, `summary()` 는 task 없는 안건을 `(none)` 으로.
+- `app.py`: FastAPI + `CORSMiddleware`(`RFA_CORS_ORIGINS`, 기본 `*`). 행위자는 고정 — create/revise 는 `desk`, approve/reject 는 `human`, 게시는 `publisher`, 자동 닫힘은 `system`. 승인은 approved → 게시 → posted 를 한 요청에서 하므로 **승인 전용 lock** 으로 직렬화 (게시 도중 두 번째 클릭이 '재시도'로 착각해 두 번 게시하는 것을 막음). 오류 본문은 `{error, detail}`.
+- `publisher.py`: `Publisher.publish(channel, target, body) -> url` Protocol + `MockPublisher`(기록만, `fail` 로 실패 흉내). `make_publisher(env)` 는 `RFA_PUBLISHER=mock` 만. live 는 Step 4.
+- `static/index.html`: v1 결재 웹을 v2 모델로 — 사이드바(전체·결재 필요·채널별·업무별 건수, 클릭하면 필터) · 목록(status 배지, NEW) · 상세(질문·스레드·head 지식/refusal·게시될 답·거절 이력·기록) · 승인 / 거절+사유 / 게시 재시도. 외부 텍스트는 모두 `textContent`.
+- `scripts/run_services.sh` 에 approvals(8790) 추가. `.env.example` 에 `RFA_PUBLISHER`, `RFA_CORS_ORIGINS`.
+- 테스트 (`test_approvals.py` 25개): 생성·멱등·target 검증·404·재시작 후 id 유지, 승인·게시 내용·두 번 승인 409·**게시 도중 두 번째 클릭**(lock 을 빼면 실패함을 확인)·게시 실패 502 후 재시도·거절된 안건 승인 409, 거절 기록·빈 사유 422·pending 아닌 거절 409·revise round+1·pending 에서 revise 409·3번째 거절 closed, 목록 정렬·필터·summary, CORS(기본·지정 origin), 참조 웹, 게시자 선택, **앱 경로·메서드·태그 ↔ 계약 yaml 대조**.
 
 ## Step 4: channels — GitHub 이식 + Slack  (`step-04-channels`)
 

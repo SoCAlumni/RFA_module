@@ -86,7 +86,7 @@ desk 가 채널에서 받은 질문 하나를 그대로 넘깁니다. **업무 �
 
 | 메서드 | 경로 | 요청 | 응답 | 오류 |
 |---|---|---|---|---|
-| `GET` | `/approvals?status=pending&channel=slack&task=orbit` | 셋 다 선택. 생략하면 전부. 최신순 | `Approval[]` | |
+| `GET` | `/approvals?status=pending&channel=slack&task=orbit` | 셋 다 선택. 생략하면 전부. 마지막 변경(updated_at) 최신순 — 거절·재작성된 안건이 위로 | `Approval[]` | |
 | `GET` | `/approvals/summary` | | 채널별·업무별 상태 건수 (아래) | |
 | `GET` | `/approvals/{id}` | | `Approval` | 404 |
 | `POST` | `/approvals/{id}/approve` | 본문 없음 | `Approval` (status `posted`, `posted_url` 채워짐) | 404 / 409 pending·approved 아님 / **502** 게시 실패 (approved 에 머묾. 다시 누르면 게시만 재시도) |
