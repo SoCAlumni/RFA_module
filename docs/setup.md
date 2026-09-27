@@ -1,6 +1,6 @@
 # 셋업과 재현 (v2)
 
-> 단계가 진행되면서 채워진다. 지금은 Step 5 까지 (결재 서버 + head_stub + 대응 에이전트 그래프).
+> 단계가 진행되면서 채워진다. 지금은 Step 5·4 까지 (결재 서버 + head_stub + 대응 에이전트 그래프 + GitHub 채널).
 
 ## 전제
 
@@ -36,6 +36,8 @@ uv run --env-file .env python -m rfa_workflow run --mention-json "$M"   # → �
 uv run --env-file .env python -m rfa_workflow redo 1                   # → 안건 #1 round 2
 ```
 `RFA_LLM_MODE=mock` 이면 키 없이, `anthropic` 이면 Claude 가 답을 쓴다.
+
+실제 GitHub 에 게시하려면 결재 서버를 `RFA_PUBLISHER=live RFA_CHANNELS=github` 로 띄운다 (`GITHUB_*` 필요). 승인하면 안건의 이슈에 댓글이 달린다. 멘션을 자동으로 받아 오는 것은 Step 6 (desk).
 
 head_stub 확인:
 ```bash

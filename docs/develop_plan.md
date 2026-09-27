@@ -7,9 +7,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 5** (`step-05-workflow`) — PR 리뷰 대기 |
-| 마지막 머지 | Step 3 (PR #17) |
-| 다음 할 일 | Step 5 PR 리뷰·머지 → Step 4 (채널 인터페이스 + GitHub + 실제 게시) |
+| 진행 중 단계 | **Step 4** (`step-04-channels`) — PR 리뷰 대기 |
+| 마지막 머지 | Step 5 (PR #18) |
+| 다음 할 일 | Step 4 PR 리뷰·머지 → Step 6 (desk 상주 루프 + GitHub E2E). `.env` 에 `RFA_CHANNELS=github` 추가 필요 |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
@@ -34,8 +34,8 @@
 | 1 | API 계약 확정 + 팀 공유 (`/ask`, `/approvals`) | `step-01-contracts` | 완료 (PR #15) |
 | 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | 완료 (PR #16) |
 | 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | 완료 (PR #17) |
-| 5 | workflow — LangGraph 그래프 (Slack 없이 가능해 4 보다 먼저) | `step-05-workflow` | 리뷰 대기 |
-| 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | |
+| 5 | workflow — LangGraph 그래프 (Slack 없이 가능해 4 보다 먼저) | `step-05-workflow` | 완료 (PR #18) |
+| 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 리뷰 대기 |
 | 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | |
 | 7 | Slack 어댑터 (Socket Mode) + Slack E2E | `step-07-slack` | Slack 토큰 필요 |
 
@@ -186,11 +186,15 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 
 ## Step 4: channels — 공통 인터페이스 + GitHub + 실제 게시  (`step-04-channels`)
 
-- `base.py`: `Channel` Protocol — `kind`, `poll() -> list[Mention]`, `post(target, body) -> str`.
-- `github.py`: v1 `GithubClient`/`find_mentions`/`MentionTracker`/`BOT_MARKER` 유지. 스레드 최근 10개를 `Mention.context` 로. `create_comment` → `post`.
-- `registry.py`: `make_channels(env)` — `RFA_CHANNELS=github` (Step 7 에서 `slack` 추가).
-- `approvals/publisher.py` 에 `LivePublisher(channels)`, `RFA_PUBLISHER=live`.
-- 테스트: `test_github.py`(`fake_github.py` 재사용), registry, LivePublisher.
+- `base.py`: `Channel` Protocol — `kind`, `poll() -> list[Mention]`, `post(target, body) -> str`. 공통 오류 `ChannelError`, 맥락 개수 `CONTEXT_LIMIT=10`.
+- `github.py`: v1 `GithubClient`/`find_mentions`/`MentionTracker`/`BOT_MARKER` 유지.
+  - `GithubClient.thread(target, exclude_url)`: 이슈 제목+본문과 댓글 중 최근 10개를 `ThreadMessage` 로 (멘션 자신은 빼고, 우리 답글은 마커만 지우고 남김). v1 `get_thread`·`Thread`·`ThreadComment`(MCP 출력용, 안 쓰는 필드) 와 `channels/models.py` 삭제.
+  - 네트워크 오류(`httpx.TransportError`)도 `GithubError`(⊂ `ChannelError`) 로 감싼다 → 게시 중 네트워크가 끊겨도 결재 서버가 500 이 아니라 502 + 재시도 흐름을 탄다.
+  - `GithubChannel(client, config, tracker)`: `poll()` 은 새 멘션에 스레드 맥락을 붙임 (맥락 조회가 실패해도 멘션은 잃지 않고 맥락 없이 돌려줌 — 추적 파일이 이미 '봤음' 으로 기록하므로). `post()` 는 `create_comment`. `from_env(env, state_dir)`.
+- `registry.py`: `make_channels(env)` — `RFA_CHANNELS=github` (비우면 채널 없음, 모르는 이름이나 env 누락은 시작할 때 RuntimeError). 추적 파일은 `<RFA_DATA_DIR>/state/mentions_seen.json`. Step 7 에서 `slack` 추가.
+- `approvals/publisher.py`: `LivePublisher(channels)` — 안건의 채널로 `post`, 채널이 꺼져 있거나 `ChannelError` 면 `PublishError`(→ 502). `RFA_PUBLISHER=live`.
+- 테스트: `test_github.py` 17 (스레드 맥락 3, 네트워크 오류, `GithubChannel` poll·맥락 실패·post·from_env 등), `test_channels.py` 7 (registry), `test_approvals.py` +3 (LivePublisher 게시·오류, **결재 서버 승인 → LivePublisher → GithubChannel → 가짜 GitHub 댓글**, 502 후 재시도).
+- 실제 GitHub(`SoCAlumni/RFA_test`)에 **읽기만** 해서 멘션 5개와 맥락이 붙는 것 확인 (추적 파일은 임시 폴더, 댓글은 달지 않음).
 
 ## Step 6: desk 상주 루프 + 스크립트 + GitHub E2E  (`step-06-desk`)
 

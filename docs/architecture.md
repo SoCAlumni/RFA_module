@@ -62,7 +62,8 @@
 | `contracts/head.openapi.yaml` | desk → head agent | 1 |
 | `contracts/approvals.openapi.yaml` | 프런트·desk → 결재 서버 | 1 |
 | `services/head_stub/` | `POST /ask` stub | 2 |
-| `services/channels/github.py` | GitHub 멘션 찾기(폴링), 스레드 읽기, 댓글 달기 | 2 (Step 4 에서 공통 인터페이스) |
+| `services/channels/base.py`, `registry.py` | 채널 공통 약속(`poll`, `post`)과 `RFA_CHANNELS` 로 켜기 | 4 |
+| `services/channels/github.py` | GitHub 멘션 찾기(폴링) + 스레드 맥락, 댓글 달기 | 2, 4 |
 | `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 7 |
 | `services/approvals/` | 결재 서버 + 참조 웹 | 3 |
 | `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 (`run`, 거절 안건 `redo`) | 5 |

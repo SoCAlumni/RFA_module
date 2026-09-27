@@ -5,8 +5,11 @@ from pathlib import Path
 import pytest
 import yaml
 from approvals.app import create_app
-from approvals.publisher import MockPublisher, PublishError, make_publisher
+from approvals.publisher import LivePublisher, MockPublisher, PublishError, make_publisher
 from approvals.store import MAX_ROUNDS
+from channels.base import ChannelError
+from channels.github import BOT_MARKER, GithubChannel, GithubClient, GithubConfig, MentionTracker
+from fake_github import REPO, FakeGithub
 from fastapi.testclient import TestClient
 
 CONTRACT = Path(__file__).resolve().parents[2] / "contracts" / "approvals.openapi.yaml"
@@ -309,12 +312,74 @@ def test_reference_page_served(client):
     assert "/approvals/summary" in res.text
 
 
-def test_make_publisher():
+def test_make_publisher(tmp_path):
     assert isinstance(make_publisher({}), MockPublisher)
+    live = make_publisher(
+        {
+            "RFA_PUBLISHER": "live",
+            "RFA_CHANNELS": "github",
+            "RFA_DATA_DIR": str(tmp_path),
+            "GITHUB_TOKEN": "t",
+            "RFA_GITHUB_LOGIN": "zetwhite",
+            "RFA_GITHUB_REPOS": "a/b",
+        }
+    )
+    assert isinstance(live, LivePublisher) and list(live.channels) == ["github"]
     with pytest.raises(RuntimeError, match="unknown RFA_PUBLISHER"):
-        make_publisher({"RFA_PUBLISHER": "live"})
+        make_publisher({"RFA_PUBLISHER": "github"})  # v1 값
     with pytest.raises(PublishError):
         MockPublisher(fail=True).publish("github", "a/b#1", "x")
+
+
+class RecordingChannel:
+    kind = "github"
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+        self.posted: list[tuple[str, str]] = []
+
+    def poll(self):
+        return []
+
+    def post(self, target: str, body: str) -> str:
+        if self.error:
+            raise self.error
+        self.posted.append((target, body))
+        return f"https://github.com/{target}#posted"
+
+
+def test_live_publisher_posts_to_the_approvals_channel():
+    ch = RecordingChannel()
+    url = LivePublisher({"github": ch}).publish("github", "a/b#1", "답")
+    assert (url, ch.posted) == ("https://github.com/a/b#1#posted", [("a/b#1", "답")])
+
+
+def test_live_publisher_errors_become_publish_error():
+    with pytest.raises(PublishError, match="slack 채널이 켜져 있지 않음"):
+        LivePublisher({"github": RecordingChannel()}).publish("slack", "C1/1.2", "x")
+    broken = RecordingChannel(ChannelError("POST comment a/b#1: 403 forbidden"))
+    with pytest.raises(PublishError, match="403"):
+        LivePublisher({"github": broken}).publish("github", "a/b#1", "x")
+
+
+def test_approve_posts_to_github_through_live_publisher(tmp_path):
+    """결재 서버 → LivePublisher → GithubChannel → (가짜) GitHub 댓글. 실패하면 502 후 재시도."""
+    fake = FakeGithub(fail_post=502)
+    client = GithubClient("t", transport=fake.transport())
+    config = GithubConfig(token="t", login="zetwhite", repos=(REPO,))
+    channel = GithubChannel(client, config, MentionTracker(tmp_path / "seen.json"))
+    app = TestClient(create_app(tmp_path, publisher=LivePublisher({"github": channel}), env={}))
+    create(app, {**GITHUB, "target": f"{REPO}#34"})  # 가짜 GitHub 는 REPO 하나만 흉내 낸다
+
+    failed = app.post("/approvals/1/approve")
+    assert failed.status_code == 502 and "502" in failed.json()["detail"]
+    assert app.get("/approvals/1").json()["status"] == "approved"
+
+    fake.fail_post = None
+    a = app.post("/approvals/1/approve").json()
+    assert a["status"] == "posted"
+    assert a["posted_url"] == f"https://github.com/{REPO}/issues/34#issuecomment-999"
+    assert fake.posted == [(f"{REPO}#34", f"{GITHUB['draft']}\n\n{BOT_MARKER}")]
 
 
 # ---- 계약 대조 -----------------------------------------------------------------
