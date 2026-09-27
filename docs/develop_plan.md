@@ -1,370 +1,208 @@
-# 개발 계획 (단계별)
+# 개발 계획 v2 (2026-09-27 재설계)
+
+> 다른 스레드에서 이어서 작업할 때는 이 문서의 **현재 상태** 절부터 읽는다. 단계가 끝날 때마다 갱신한다.
+> 배경·결정은 `docs/plan.md`, 팀 경계 API 는 `docs/contracts.md`, 리셋 내역은 `docs/migration.md`.
+
+## 현재 상태
+
+| 항목 | 값 |
+|---|---|
+| 진행 중 단계 | **Step 1** (`step-01-contracts`) — 계약 모델·yaml·공유 문서 작성 중 |
+| 마지막 머지 | Step 9 (v1, PR #11) — v2 기준으로는 아직 없음 |
+| 다음 할 일 | Step 1 PR 올리기 → 사용자 리뷰·머지 → 사용자가 `git rm/mv`(아래 Step 2) 실행 → Step 2 |
+| 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
 ## 규칙
 
-- **한 단계 = 재현 가능한 기능 하나 = PR 하나.** 리뷰·머지 전에는 다음 단계를 시작하지 않는다.
-- 브랜치 `step-NN-<name>`, PR 제목 `Step NN: <기능>`. PR 본문에 재현 명령과 테스트 결과를 붙인다.
-- 단계마다 테스트를 작성하고 `uv run pytest`가 통과해야 한다.
+- **한 단계 = 재현 가능한 기능 하나 = PR 하나.** PR 은 사용자가 리뷰하고 머지한다. 머지 전에는 다음 단계를 시작하지 않는다.
+- 브랜치 `step-NN-<name>`, PR 제목 `Step NN: <기능>`. PR 본문에 재현 명령, 테스트 결과, 셀프리뷰 결과를 붙인다.
+- 단계마다 테스트를 쓰고 `uv run pytest` 와 `uv run ruff check . && uv run ruff format --check .` 가 통과해야 한다.
 - 셀프 코드리뷰 체크리스트 (PR 전에 확인, PR 본문에 결과 기재):
   - [ ] dead code 없음: 미사용 import, 함수, 파일, 설정 키, 주석 처리된 코드
   - [ ] 모든 공개 함수/엔드포인트에 동작을 증명하는 테스트가 있음
-  - [ ] 실패 경로(잘못된 입력, 순서 위반, 인증 실패)도 테스트됨
-  - [ ] `docs/modules/*.md`와 코드가 일치함. 달라졌으면 문서를 고침
+  - [ ] 실패 경로(잘못된 입력, 순서 위반, 외부 오류)도 테스트됨
+  - [ ] 문서(`docs/*.md`, `contracts/*.yaml`)와 코드가 일치함
   - [ ] 비밀값이 코드/커밋에 없음
   - [ ] 이 단계 범위 밖 코드를 미리 넣지 않음
-- 공통 도구: Python 3.12+, `uv`, `pytest`, `ruff`(lint + format). FastAPI, pydantic v2, httpx, FastMCP, LangGraph.
+- 공통 도구: Python 3.12+, `uv`, `pytest`, `ruff`. FastAPI, pydantic v2, httpx, LangGraph, slack_sdk.
 
 ## 진행 표
 
-| Step | 기능 | 상태 |
-|---|---|---|
-| 0 | 초기 커밋 (docs, README, .gitignore) | 완료 |
-| 1 | 스켈레톤 + 계약 + 공용 모델 | 완료 (PR #1) |
-| 2 | knowledge stub + 데모 데이터 | 완료 (PR #2) |
-| 3 | review 코어 (상태기계, reviews API) | 완료 (PR #5) |
-| 4 | scanner + policy | 완료 (PR #6) |
-| 5 | clearance + 결재 (approve/reject) | 완료 (PR #7) |
-| 6 | 알람/결재 웹 | 완료 (PR #8) |
-| 7 | github MCP | 완료 (PR #9) |
-| 8 | rfa_workflow (LangGraph) | 완료 (PR #10) |
-| 9 | 호스트 E2E | |
-| 10 | 샌드박스 재현 | |
-| 11 | 샌드박스 E2E + README | |
-| 12 | 멘션 대기열과 복구 (at-least-once 처리) | Step 11 뒤, 본선 전 |
+| Step | 기능 | 브랜치 | 상태 |
+|---|---|---|---|
+| 1 | API 계약 확정 + 팀 공유 (`/ask`, `/approvals`) | `step-01-contracts` | 진행 중 |
+| 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | |
+| 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | |
+| 4 | channels — GitHub 이식 + Slack (Socket Mode) | `step-04-channels` | |
+| 5 | workflow — LangGraph 그래프 | `step-05-workflow` | |
+| 6 | desk 상주 루프 + 스크립트 + E2E | `step-06-desk` | |
 
 ---
 
-## Step 1: 스켈레톤 + 계약 + 공용 모델
+## 큰 그림
 
-**목표.** 모든 모듈이 공유하는 뼈대. 이후 단계가 같은 패키지 구조, 같은 모델, 같은 테스트 러너를 쓴다.
+### 터미널 3개
 
-**범위.**
-- 포함: uv 워크스페이스, `rfa_common` 패키지(pydantic 모델), OpenAPI 계약 파일, `.env.example`, ruff/pytest 설정
-- 제외: 서비스 코드, 실행 스크립트
-
-**만들 파일.**
 ```
-pyproject.toml                 # uv workspace root: ruff, pytest 설정
-services/pyproject.toml        # 패키지 rfa_services (rfa_common, 이후 knowledge_stub/review/mcp_channels)
-services/rfa_common/__init__.py
-services/rfa_common/models.py  # 아래 모델
-services/tests/test_models.py
-contracts/knowledge.openapi.yaml
-contracts/review.openapi.yaml
-.env.example
+   GitHub / Slack
+        ▲ ▼ (읽기)
+  ┌──────────────┐   "지식 줘"     ┌──────────────┐
+  │ C. desk      │ ─────────────► │ B. 지식 서버  │  ← 민섭님 것으로 교체
+  │ (감시+작성)   │                └──────────────┘
+  │              │   "결재 올려줘"  ┌──────────────┐        ┌────────────┐
+  │              │ ─────────────► │ A. 결재 서버  │ ◄───── │ 다영님 프런트 │
+  │              │ ◄───────────── │  (웹 백엔드)  │        │  (브라우저)  │
+  └──────────────┘  "거절된 거 있어?"└──────┬───────┘        └────────────┘
+                                          │ 승인되면 게시
+                                          ▼
+                                    GitHub / Slack
 ```
 
-**동작 정의.** `rfa_common/models.py`:
-| 모델 | 필드 |
+| | 실행 명령 | 포트 | 역할 | 비고 |
+|---|---|---|---|---|
+| A. 결재 서버 (`approvals`) | `uvicorn approvals.app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름 |
+| B. 지식 서버 (`head_stub`) | `uvicorn head_stub.app --port 8791` | 8791 | `POST /ask` 하나. `data/knowledge/` 검색해 답 | 민섭님 head agent 오면 안 켬 (`HEAD_URL` 변경) |
+| C. desk | `python -m rfa_workflow desk` | 없음 | 5초마다 GitHub/Slack 확인 → `graph.py`(LangGraph) 실행 → B 에 지식 요청, A 에 안건 제출. A 의 거절 안건 폴링해 재작성 | 요청을 받지 않고 보내기만 함. LangGraph 는 이 안에서 함수로 실행 |
+
+`scripts/run_services.sh` = A+B, `scripts/run_desk.sh` = C.
+
+### 흐름
+
+```
+1  GitHub 멘션 / Slack 멘션·DM ──► 2  desk (채널 어댑터) ──► LangGraph run(mention)
+                                        │
+                        3  POST {HEAD_URL}/ask  {question, channel, audience, target, url, requester, context, feedback[{draft, reason}]}
+                        4  ◄── {knowledge, task, refusal}                         ← 민섭님. 지금은 head_stub
+                        5  writer LLM → 초안 (채널 말투, 거절 사유 반영)
+                        6  POST {APPROVALS_URL}/approvals  → pending  (그래프 종료)
+                                        │
+              6-1 POST /approvals/{id}/reject {reason} → rejected      6-2 POST /approvals/{id}/approve
+                   desk 가 rejected 를 폴링 → run(mention, rejections)         → 백엔드가 채널에 바로 게시 → posted
+                   → POST /approvals/{id}/revise → pending (round+1)
+                   3회 거절이면 백엔드가 closed 로 닫음
+```
+
+### 목표 레이아웃
+
+```
+common/rfa_common/contracts.py     계약 모델 (contracts/*.openapi.yaml 과 1:1). v1 의 models.py 는 Step 2 에서 삭제
+contracts/head.openapi.yaml        POST /ask (민섭님 공유용)
+contracts/approvals.openapi.yaml   결재 API (다영님 프런트 공유용)
+services/
+  head_stub/      knowledge_stub 개명. POST /ask. loader.py·rank.py 재사용
+  channels/       mcp_channels 개명. base.py(Protocol) · github.py(이식) · slack.py(새) · registry.py
+  approvals/      app.py · store.py(review/store.py 축소) · publisher.py · static/index.html(기존 축소)
+  tests/
+workflow/rfa_workflow/
+  graph.py        intake → ask_head → write → submit (고정 그래프)
+  desk.py         상주 루프 (채널 poll + rejected 폴링)
+  clients.py      HeadClient · ApprovalsClient
+  llm.py          AnthropicLLM 유지, RuleLLM 은 writer 규칙만
+  prompts/        writer.md · style_github.md · style_slack.md
+  cli.py          run --mention-json / desk
+```
+
+### 결재 상태기계
+
+| to | from |
 |---|---|
-| `Channel` | enum `public`, `internal` |
-| `KnowledgeResult` | task_id, answer, confidence(0~1), sources[str] (근거 한 줄씩) |
-| `TaskInfo` | id, name, description, updated_at |
-| `Mention` | channel, target(`owner/repo#N` 형식 검증), author, text, url, created_at |
-| `ReviewStatus` | enum opened, knowledge_ready, drafted, scanned, reviewed, approved, rejected, posted, needs_human |
-| `EditVerdict` | round(int≥1), verdict(pass/revise), notes?, issues[] |
-| `ScanHit` | type(enum token/private_ip/internal_host/internal_path), match, span[start,end] |
-| `VerdictReason` | rule(`scope:id` 형식), span, action(remove/blur/keep) |
-| `Verdict` | verdict(allow/redact/block), redacted_body?, reasons[], summary. redact면 redacted_body 필수 |
-| `Event` | at(datetime), who, what, detail? |
-| `Review` | id, status, channel, target, source_url, requester, question, knowledge?, draft?, edit_log[], scan[], verdict?, final_body?, decision?, events[] |
+| approved | pending |
+| posted | approved |
+| rejected | pending |
+| pending (revise) | rejected |
+| closed | rejected (round ≥ 3 이면 reject 가 자동으로 closed 까지) |
 
-**테스트.**
-- 각 모델 정상 생성 1건
-- `Mention.target` 형식 오류 거부
-- `Verdict(redact)`에 redacted_body 없으면 거부
-- `KnowledgeResult.confidence` 범위 밖 거부
-- `VerdictReason.rule` 형식 오류 거부
-
-**완료 조건.**
-```bash
-uv sync && uv run ruff check . && uv run pytest
-```
+`/approve` 는 approved → publisher.post → posted 를 한 요청에서. 게시 실패는 502 + approved 유지 (다시 누르면 게시만 재시도).
 
 ---
 
-## Step 2: knowledge stub + 데모 데이터
+## Step 1: API 계약 확정 + 팀 공유  (`step-01-contracts`)
 
-**목표.** 실무대장 계약(`contracts/knowledge.openapi.yaml`)을 그대로 지키는 stub 서비스. LangGraph가 붙을 대상 1호.
-
-**범위.** 포함: FastAPI 앱, md 로더, 키워드 랭킹, 데모 데이터 3 task. 제외: LLM 호출, 실무대장 실제 연동.
+**목표.** 두 팀원과 맞닿는 경계를 먼저 못 박고 공유한다. v1 코드는 건드리지 않는다 (삭제는 Step 2).
 
 **만들 파일.**
 ```
-services/knowledge_stub/__init__.py
-services/knowledge_stub/app.py      # GET /tasks, POST /tasks/{id}/ask
-services/knowledge_stub/loader.py   # data/knowledge/<task>/_task.yaml + *.md(frontmatter)
-services/knowledge_stub/rank.py     # 질문·문서 토큰 겹침 점수, 상위 k
-services/tests/test_knowledge_stub.py
-data/knowledge/orbit/_task.yaml, progress-2026-09.md
-data/knowledge/quantization/_task.yaml, qat-notes.md
-data/knowledge/prism/_task.yaml, design.md
+common/rfa_common/contracts.py      새 모델 (v1 models.py 와 별도 파일 — 이름 충돌 없이 공존)
+contracts/head.openapi.yaml
+contracts/approvals.openapi.yaml    (v1 의 review/knowledge yaml 은 Step 2 에서 삭제)
+docs/contracts.md                   팀 공유 한 장
+docs/develop_plan.md                이 문서
+services/tests/test_contracts.py    모델 검증 + yaml properties ↔ 모델 필드 대조
 ```
 
-**동작 정의.**
-- `GET /tasks` → `TaskInfo[]` (폴더 스캔, `_task.yaml` 없는 폴더는 무시)
-- `POST /tasks/{id}/ask {question}` → `KnowledgeResult`. 없는 task는 404. 상위 k=3 문서 본문을 이어 붙여 answer, 겹침 비율을 confidence, 선택 문서를 `"제목: 요약"` 문자열로 sources.
-- 데모 데이터에 일부러 넣는 기밀: orbit에 미공개 모델명 `Nimbus2`, 수치 `EM 0.5%p`, 릴리즈 `11/3`, GPU pool `10.12.3.4`, 토큰 `hf_…`; prism에 경로 `/nfs/prism/`. quantization은 깨끗(대조군).
-- 데이터 경로는 env `RFA_DATA_DIR`(기본 `./data`).
+**동작 정의.** `docs/contracts.md` 참고.
 
-**테스트.** `/tasks` 3건, `ask`가 orbit 질문에 progress 문서를 sources로 반환, 없는 task 404, frontmatter 누락 md는 건너뜀.
+**끝나면.** PR → 머지 → `.github/workflows/api-docs.yml` 이 Redoc 을 https://socalumni.github.io/RFA_module/ 에 배포 → 사용자가 `docs/contracts.md` 와 Pages 링크를 민섭님·다영님께 전달.
 
-**완료 조건.**
-```bash
-uv run uvicorn knowledge_stub.app:app --port 8791 &
-curl -s localhost:8791/tasks | jq
-curl -s -X POST localhost:8791/tasks/orbit/ask -H 'content-type: application/json' -d '{"question":"ORBIT 벤치마크 진행 어때?"}' | jq
-uv run pytest
+## Step 2: 리셋 + 문서 + head_stub  (`step-02-reset`)
+
+**목표.** v1 에서 소관이 넘어갔거나 방향이 다른 코드를 걷어내고, 남길 것을 새 자리로 옮긴다.
+
+**사용자가 먼저 실행** (권한 분류기가 Claude 의 `git rm` 을 막음):
 ```
-
----
-
-## Step 3: review 코어 (상태기계, reviews API)
-
-**목표.** 결재 문서의 생성과 전이. 순서 위반은 409. 스캔·서명·결재는 아직 없음.
-
-**범위.** 포함: 파일 저장소, transition, reviews 엔드포인트(approve/reject 제외), events. 제외: scanner, policy, clearance, 웹.
-
-**만들 파일.**
+git rm -r -q services/review services/mcp_channels/server.py contracts/review.openapi.yaml \
+  contracts/knowledge.openapi.yaml data/policy common/rfa_common/models.py \
+  workflow/rfa_workflow/nodes workflow/rfa_workflow/graph_public.py workflow/rfa_workflow/desk.py \
+  workflow/rfa_workflow/recovery.py workflow/rfa_workflow/mcp_entry.py \
+  workflow/rfa_workflow/prompts/censor_public.md workflow/rfa_workflow/prompts/style_public.md \
+  workflow/rfa_workflow/prompts/pick_task.md workflow/rfa_workflow/prompts/editor.md \
+  services/tests/test_approval.py services/tests/test_approval_web.py services/tests/test_clearance.py \
+  services/tests/test_policy.py services/tests/test_scanner.py services/tests/test_review_core.py \
+  services/tests/test_github.py services/tests/test_knowledge_stub.py services/tests/test_models.py \
+  services/tests/conftest.py services/tests/svc_support.py \
+  workflow/tests/test_desk.py workflow/tests/test_graph.py workflow/tests/test_recovery.py \
+  workflow/tests/test_llm_cli_entry.py workflow/tests/conftest.py \
+  docs/modules scripts/demo_host.sh
+git mv services/knowledge_stub services/head_stub
+git mv services/mcp_channels services/channels
 ```
-services/review/__init__.py
-services/review/app.py         # 라우트
-services/review/store.py       # data/state/review-<id>.json, 전이표 ALLOWED, advance(), ReviewNotFound/InvalidTransition
-services/rfa_common/models.py  # 요청 본문 모델 추가: OpenReviewRequest, DraftRequest, NeedsHumanRequest
-services/tests/test_review_core.py
-```
-
-**동작 정의.**
-| 엔드포인트 | 전이 | 본문 |
-|---|---|---|
-| `POST /reviews` | → opened | channel, target, source_url, requester, question |
-| `GET /reviews?status=` | — | Review 목록 (id 순) |
-| `GET /reviews/{id}` | — | Review 전체, 없으면 404 `{error: not_found, id}` |
-| `POST /reviews/{id}/knowledge` | opened → knowledge_ready | KnowledgeResult |
-| `POST /reviews/{id}/draft` | knowledge_ready → drafted | text, edit_log[] (Step 4에서 scanned까지 자동 전이 추가) |
-| `POST /reviews/{id}/verdict` | drafted → reviewed (Step 4 이후 scanned → reviewed) | Verdict |
-| `POST /reviews/{id}/needs-human` | 어느 상태(approved/posted 제외) → needs_human | reason |
-- 모든 전이는 `events[]`에 `{at, who, what, detail}` 추가. `who`는 요청 헤더 `X-RFA-Actor`(기본 "unknown").
-- 저장은 파일 단위 원자적 쓰기(tmp → rename).
-
-**테스트.** 정상 경로 opened→…→reviewed, 각 잘못된 전이 409, 404, events 길이, 목록 status 필터, 재시작 후 로드.
-
-**완료 조건.** `uv run pytest`, `uvicorn --factory review.app:create_app --port 8790` 후 (RFA_CLEARANCE_KEY 필요) curl로 opened→reviewed 재현.
-
----
-
-## Step 4: scanner + policy
-
-**목표.** 비밀값 자동 스캔과 기밀 기준 제공.
-
-**범위.** 포함: scanner, `/draft`에서 자동 스캔 후 `scanned` 전이, policy 파일과 `GET /policy/{scope}`, feedback 읽기. 제외: feedback 쓰기(Step 5), personal 추가 API(9/28).
-
-**만들 파일.**
-```
-services/review/scanner.py
-services/review/policy.py
-data/policy/public/official.md, personal.md
-data/policy/internal_hosts.txt, internal_paths.txt
-(data/policy/feedback.jsonl 은 런타임 파일이라 gitignore, 없으면 빈 목록)
-services/tests/test_scanner.py, test_policy.py
-```
-
-**동작 정의.**
-- `scan(text) -> ScanHit[]`: token(hf_/ghp_/github_pat_/sk-/AKIA/xox[bp]-), private_ip(RFC1918), internal_host(목록), internal_path(목록 접두사). 겹치는 hit는 긴 것 우선.
-- `/draft`: drafted 기록 → scan → scanned 기록(events 2건). 두 전이는 `store.advance(*steps)`로 한 번에 저장.
-- `GET /policy/{scope}` → `{scope, official: str, personal: str, feedback: FeedbackItem[]}`. scope는 public|internal, 없는 scope 404. feedback은 scope 일치 최근 10건, reject 우선.
-
-**테스트.** 각 패턴 검출/비검출, 겹침 처리, `/draft` 후 status=scanned & scan 채워짐, policy 응답, 없는 scope 404.
-
----
-
-## Step 5: clearance + 결재
-
-**목표.** 사람 결재와 서명 토큰. 게이트 완성.
-
-**범위.** 포함: HMAC 서명/검증, approve/reject, loopback 가드, publisher 인터페이스(이 단계는 `MockPublisher`가 기록만), reject → feedback.jsonl. 제외: GitHub 실제 게시(Step 7).
-
-**만들 파일.**
-```
-services/review/clearance.py   # sign(review_id, target, body) -> token, verify(token, target, body)
-services/review/publisher.py   # Publisher 프로토콜, MockPublisher
-services/tests/test_clearance.py, test_approval.py
-```
-
-**동작 정의.**
-- `POST /reviews/{id}/approve`: 클라이언트 주소가 127.0.0.1이 아니면 403. status≠reviewed면 409. verdict=block이면 409. final_body에 token hit 남아 있으면 409. → approved 기록 → token 발급 → publisher.publish(target, final_body, token) → posted 기록. 응답 `{status, posted_url?}`.
-- `POST /reviews/{id}/reject {reason}`: reviewed → rejected, feedback.jsonl에 추가.
-- `final_body` = verdict.redact ? redacted_body : draft.
-- token: `base64url(json payload).base64url(hmac_sha256)`, exp 기본 10분. 키 `RFA_CLEARANCE_KEY` 없으면 앱 시작 실패.
-
-**테스트.** 서명 왕복, 위조/만료/target 불일치/본문 변경 거부, 비-loopback 403, block 409, 순서 409, approve 후 posted & publisher 호출 1회, reject 후 feedback 1건 추가.
-
----
-
-## Step 6: 알람/결재 웹
-
-**목표.** 사람이 보는 화면. 실제 데이터로 목록·타임라인·결재.
-
-**범위.** 포함: `static/index.html` + 인라인 JS, `GET /` 서빙. 제외: 편집 후 승인(9/27), personal 기준 UI.
-
-**동작 정의.** 3초 폴링 `GET /reviews`. 좌측 목록(상태 배지, 새 항목 강조), 우측 타임라인(질문 → 지식 → 초안 → 첨삭 → 스캔 하이라이트 → 판정 원본↔수정안 + 사유 태그 → 버튼). 승인/거절(사유 필수) → API 호출 → 결과 반영.
-
-**테스트.** `GET /`가 200 + HTML, 정적 파일 경로. 화면 동작은 수동 체크리스트(PR에 스크린샷).
-
----
-
-## Step 7: github MCP
-
-**목표.** 외부 채널 1호. 읽기는 MCP 툴, 게시는 내부 함수.
-
-**만들 파일.**
-```
-services/mcp_channels/__init__.py, server.py, github.py, models.py
-services/review/publisher.py   # GithubPublisher 추가
-services/tests/test_github.py  # httpx MockTransport
-```
-
-**동작 정의.**
-- MCP(streamable-http, `/github/mcp`, bearer `GITHUB_MCP_TOKEN`): `list_mentions(since?) -> Mention[]`(감시 레포 `RFA_GITHUB_REPOS`의 이슈 본문·댓글에서 `@RFA_GITHUB_LOGIN` 검색, 본 것은 `data/state/mentions_seen.json`), `get_thread(target) -> Thread`. notifications API는 fine-grained 토큰 미지원이라 쓰지 않음.
-- 내부: `post_comment(target, body, token)`: `clearance.verify` → `POST /repos/{o}/{r}/issues/{n}/comments`. 실패 시 예외.
-- review 앱은 env `RFA_PUBLISHER=github|mock`으로 publisher 선택.
-
-**테스트.** mock transport로 세 함수, bearer 없으면 401, verify 실패 시 API 호출 없음. 테스트 레포 실호출은 PR 본문에 결과 기록.
-
----
-
-## Step 8: rfa_workflow (LangGraph)
-
-**목표.** 멘션 → 결재 대기까지의 고정 그래프. mock LLM으로 검증.
-
-**만들 파일.**
-```
-workflow/pyproject.toml
-workflow/rfa_workflow/{state,graph_public,llm,clients,cli,mcp_entry}.py
-workflow/rfa_workflow/nodes/{intake,knowledge,press,submit,censor}.py
-workflow/rfa_workflow/prompts/{pick_task,writer,editor,style_public,censor_public}.md
-common/rfa_common/  # services 에서 분리: 워크플로(샌드박스)가 서비스 패키지를 끌고 가지 않게
-workflow/tests/test_graph.py, fixtures/
-```
-
-**동작 정의.** `docs/modules/workflow.md`의 노드 표. `RFA_LLM_MODE=mock|anthropic`, `ANTHROPIC_BASE_URL`(샌드박스는 inference.local), `REVIEW_URL`, `KNOWLEDGE_URL`. 409 수신 시 needs_human.
-
-**테스트.** pass 경로 최종 status=reviewed, revise 2회 상한, task 없음 → needs_human, review 409 → needs_human, verdict JSON 파싱 실패 1회 재시도.
-
----
-
-## Step 9: 호스트 E2E
-
-**목표.** 샌드박스 없이 전체 흐름. `scripts/run_services.sh`(서비스 3개), `scripts/demo_host.sh`(= `python -m rfa_workflow desk-once`: GitHub MCP 의 새 멘션 → 워크플로). public-desk 역할을 호스트 데스크(`rfa_workflow/desk.py`)가 대신한다. 실제 LLM은 호스트 `ANTHROPIC_API_KEY`.
-
-**완료 조건.** 테스트 이슈 멘션 → 알람 → 승인 → 수정본 게시. PR에 로그와 스크린샷.
-
----
-
-## Step 10: 샌드박스 재현
-
-**목표.** 레포 파일만으로 `rfa` 샌드박스 생성. `docs/setup.md` 순서. 산출: `scripts/setup_sandbox.sh`, `agents/agents.yaml`, `agents/public-desk/AGENTS.md`, `policies/rfa.yaml`, mkcert 안내, workflow.run 등록, cron.
-
-**완료 조건.** `nemoclaw rfa mcp status --tools`, `agents list`, 안에서 `inference.local` 200, approve 접근 실패, `nemoclaw rfa agent --agent public-desk -m "..."` 수동 트리거로 review 생성.
-
----
-
-## Step 11: 샌드박스 E2E + README
-
-**목표.** cron 트리거로 전체 흐름 1회, README 실행법, 제출 자료 정리.
-
----
-
-## Step 12: 멘션 대기열과 복구 (at-least-once 처리)
-
-**목표.** 조회한 멘션을 하나도 잃지 않는다. 지금은 `list_mentions`가 돌려주는 순간 "본 것"으로 기록해서(at-most-once), 조회 직후 프로세스가 죽거나 한 멘션 처리 중 예외가 나면 나머지가 영영 빠진다. 이를 **"조회 → 저장 → 커서" 순서 + 미완료 문서 복구 + 결과별 재처리 정책**으로 바꾼다.
-
-**설계 원칙.** 별도 대기열 파일을 만들지 않고 **결재 문서 = 작업 항목**으로 쓴다. 이미 멘션 하나당 문서 하나가 영속 저장되고 `source_url`로 멱등이므로, 대기 목록·중복 방지·상태 조회가 그대로 따라온다. 대기열 로직은 전부 결정적 코드(호스트 데스크)에 두고, OpenClaw public-desk(LLM)는 `desk.poll` 툴 하나만 부른다.
-
-**범위.**
-- 포함: mcp_channels(`list_mentions` 순수 조회화), review(상태 2개·전이 2개·목록 필터), workflow desk(대기열 처리·재시도·잠금·status), CLI, 계약, 문서, 전환 절차
-- 제외: 재결재 경로(Step 13), Internal 채널
 
 **만들/고칠 파일.**
-```
-services/mcp_channels/github.py      # MentionTracker 제거. list_mentions(since) 는 순수 조회 (본 것 기록 안 함)
-services/review/store.py             # 상태 returned 추가, 전이 opened→returned, needs_human|returned→(재개 지점) reopen, failures 필드
-services/review/app.py               # POST /reviews/{id}/returned, POST /reviews/{id}/reopen (loopback 전용), GET /reviews?status= 다중값
-common/rfa_common/models.py          # ReviewStatus.RETURNED, Review.failures[], Review.attempts
-workflow/rfa_workflow/desk.py        # 대기열 처리: fetch → enqueue → cursor → drain(미완료 전부) → 결과별 정책, 파일 잠금
-workflow/rfa_workflow/cli.py         # desk-once(재정의), retry <id> [--hint], status [--all]
-workflow/rfa_workflow/graph_public.py # returned/needs_human 결과를 문서 상태에도 기록 (returned 전이 호출)
-data/state/desk_cursor.json          # {since} — 데스크가 소유 (MCP 서버 아님)
-data/state/desk.lock                 # 실행 잠금
-contracts/review.openapi.yaml        # 상태·전이·failures 추가
-docs/modules/{workflow,mcp-channels,review-service}.md, docs/setup.md
-services/tests/test_github.py, test_review_core.py / workflow/tests/test_desk.py, test_queue.py
-```
+- `docs/migration.md` (새): 지운 것·옮긴 것·남긴 것 표 + 이유, v1 모듈 → v2 모듈 대응표.
+- `docs/plan.md`, `docs/architecture.md` 재작성. `docs/setup.md`, `README.md` 갱신. `person/TODO.md` 커밋.
+- `services/head_stub/app.py`: `POST /ask` — 모든 task 폴더 문서를 합쳐 `rank.top_docs` 로 top-3. `task` 는 1위 문서의 폴더(`_task.yaml` 의 name). `feedback` 가 있으면 마지막 `reason` 의 토큰(`rank.tokenize`)과 겹치는 문장을 knowledge 에서 뺀다 (stub 규칙). 아무 문서도 안 맞으면 `task=null, refusal="관련 업무를 찾지 못했습니다"`.
+- `services/channels/github.py`: import 경로만 새 모델로 (기능 수정은 Step 4).
+- `services/pyproject.toml` packages → `head_stub, channels, approvals`. `workflow/` 는 임시로 `clients.py`·`llm.py`·`state.py`·`deps.py`·`cli.py` 만 남기고 import 가 깨지지 않게 최소 수정.
+- `.env.example`: RFA_CLEARANCE_KEY, GITHUB_MCP_*, RFA_MCP_*, REVIEW_URL, KNOWLEDGE_URL 제거 / HEAD_URL, APPROVALS_URL, SLACK_BOT_TOKEN, SLACK_APP_TOKEN, RFA_CHANNELS, RFA_PUBLISHER=mock|live, RFA_CORS_ORIGINS 추가.
 
-**동작 정의.**
+**테스트.** `test_head_stub.py`(ask, task 선택, feedback 필터, refusal). 기존 `test_contracts.py` 통과 유지.
 
-1. 조회와 저장 분리
-   - `list_mentions(since)`는 GitHub 를 읽어 돌려주기만 한다. `mentions_seen.json` 과 `MentionTracker` 삭제.
-   - 데스크: `since = cursor.since or now-24h` 로 조회 → 멘션마다 `POST /reviews`(멱등, 기존이면 200) → **전부 저장된 뒤에만** `cursor.since = 조회 시작 시각` 저장(tmp→rename). 저장 중 죽으면 커서가 안 올라가 다음 실행에서 같은 구간을 다시 조회하고, 멱등 생성이라 중복은 없다.
-   - 같은 URL 을 다시 봐도 문서는 하나(기존 `test_same_mention_returns_existing_review`).
+## Step 3: approvals 서비스 + 참조 결재 웹  (`step-03-approvals`)
 
-2. 미완료 작업 복구
-   - 저장 후 `GET /reviews?status=opened,knowledge_ready,scanned` 로 **미완료 문서 전부**를 처리한다. 새 멘션이 없어도 돈다.
-   - 중간 상태는 Step 8 의 재개 로직(`intake`가 상태로 시작 지점 결정)을 그대로 쓴다.
-   - "실행 중" 표시는 두지 않는다(죽으면 지워줄 사람이 없음). 대신 실행 잠금으로 동시 실행을 막고, 잠금이 없으면 진행 중인 것이 없다고 본다.
+- `store.py`: v1 `review/store.py` 의 골격(안건 하나 = `data/state/approval-<id>.json`, tmp+rename 원자적 쓰기, `Step`/`ALLOWED` 전이표, `source_url` 멱등 create) 을 위 상태기계로 축소. `list(status, channel, task)`, `summary()`.
+- `app.py`: FastAPI + `CORSMiddleware`(`RFA_CORS_ORIGINS`, 기본 `*`). 엔드포인트는 `docs/contracts.md`. `/approvals/summary` 를 `/approvals/{id}` 보다 먼저 등록.
+- `publisher.py`: `Publisher` Protocol + `MockPublisher`(기록만). live 는 Step 4.
+- `static/index.html`: v1 결재 웹 축소 — 목록(status 배지) · 상세(질문·스레드·knowledge·초안·거절 이력) · 승인 / 거절+사유.
+- 테스트: 상태 전이(정상·409·3회 거절 closed·게시 실패 502), 멱등 생성, 필터·summary, CORS 헤더.
 
-3. 결과별 재처리 정책
-   | 결과 | 문서 상태 | 자동 재실행 |
-   |---|---|---|
-   | reviewed | reviewed | 안 함 (사람 결재 대기) |
-   | already_handled | 그대로 | 안 함 |
-   | returned | **returned** (신규 상태, 워크플로가 `POST /returned` 로 전이) | 안 함. `retry <id> --hint` 로만 |
-   | needs_human | needs_human | 안 함. `retry <id>` 로만 |
-   | 예상 밖 예외 | 상태 그대로 + `failures[]` 에 사유·시각 추가 | 다음 실행에서 재시도. `attempts ≥ 3` 이면 needs_human 으로 전이하고 멈춤 |
-   - `retry <id> [--hint]`: `POST /reviews/{id}/reopen` (loopback 전용) → 저장 데이터가 있는 마지막 재개 지점으로 되돌림(knowledge 있으면 knowledge_ready, draft·scan 있으면 scanned, 없으면 opened) → 워크플로 실행. reviewed/approved/posted/rejected 는 reopen 거부(409). 기존 `intake`의 DONE 판정은 그대로라 needs_human 문서는 reopen 없이는 다시 돌지 않는다.
+## Step 4: channels — GitHub 이식 + Slack  (`step-04-channels`)
 
-4. 부분 실패 격리
-   - 문서마다 `try/except Exception` 으로 감싸 실패를 `failures[]` 에 기록하고 다음 문서로 계속. 실행 끝에 결과 요약을 출력하고, 실패가 있으면 exit 1.
+- `base.py`: `Channel` Protocol — `kind`, `poll() -> list[Mention]`, `post(target, body) -> str`.
+- `github.py`: v1 `GithubClient`/`find_mentions`/`MentionTracker`/`BOT_MARKER` 유지. 스레드 최근 10개를 `Mention.context` 로. `create_comment` → `post`.
+- `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(bot_token, app_token)`: `start()` 가 `SocketModeClient` 리스너로 `app_mention`/`message`(im) 을 즉시 ack 하고 큐에 넣음 (봇 자신 무시, `<@BOT>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)`, URL `https://slack.com/archives/{C}/p{ts}`.
+- `registry.py`: `make_channels(env)` — `RFA_CHANNELS=github,slack`.
+- `approvals/publisher.py` 에 `LivePublisher(channels)`, `RFA_PUBLISHER=live`.
+- 테스트: `test_github.py`(v1 테스트를 새 API 로, `fake_github.py` 재사용), `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload).
 
-5. 중복 방지·사람 결재 유지
-   - 문서 생성 멱등, 제출 409 해소, approve loopback 전용은 그대로.
-   - 워크플로 완료 후 결과 기록 전에 죽어도: 문서 상태는 서버에 이미 반영돼 있어 다음 실행이 `already_handled`/미완료 복구로 정확히 이어간다. 게시는 사람이 approve 를 눌러야만 일어나므로 중복 게시 없음.
-   - 실행 잠금: `data/state/desk.lock` 을 `fcntl.flock` 비차단으로 잡고, 실패하면 "다른 데스크가 실행 중" 으로 즉시 종료(exit 2). 죽은 프로세스의 잠금은 OS 가 풀어준다.
+## Step 5: workflow — 그래프  (`step-05-workflow`)
 
-6. 상태 확인
-   - `rfa-workflow status`: 미완료·returned·needs_human 문서를 표로(id, 상태, 멘션 URL, attempts, 마지막 실패 사유, 갱신 시각). `--all` 이면 전부.
-   - 결재 웹은 `returned` 배지("보완 필요")와 `failures` 표시를 추가.
+- `state.py`: mention, rejections, approval_id, task, knowledge, refusal, draft, outcome(`pending`|`failed`).
+- `clients.py`: `_Service` 재시도 골격 유지. `HeadClient.ask`, `ApprovalsClient.create/revise/list/get`.
+- `graph.py`: `intake`(같은 source_url 안건이 pending/approved/posted 면 건너뜀) → `ask_head` → `write` → `submit`(approval_id 있으면 revise, 없으면 create). 오류는 `outcome=failed` + 로그.
+- `llm.py`: `RuleLLM.text("writer")` — knowledge 문장을 붙이되 rejections 가 있으면 마지막 reason 토큰과 겹치는 문장 제거. `structured` 제거.
+- `prompts/writer.md` + `style_github.md` / `style_slack.md`.
+- `cli.py`: `run --mention-json`.
+- 테스트: FakeLLM + head_stub/approvals TestClient — 정상 pending, 거절 후 revise round 2, refusal, head 5xx 재시도 후 failed.
 
-7. 전환 (`mentions_seen.json` → 커서)
-   - 기존 `seen` 은 "처리 완료"가 아니라 "돌려준 적 있음"이다. 전환 시 `desk_cursor.json` 이 없으면 `RFA_DESK_BACKFILL_HOURS`(기본 24) 전부터 조회한다. 멱등 생성 덕에 이미 문서가 있는 멘션은 그 문서로 이어지고, 없던 멘션(예전 누락분)은 이때 문서가 생긴다. 24시간보다 오래된 누락은 복구하지 못한다 — 이 한계를 `docs/modules/mcp-channels.md` 에 적는다.
+## Step 6: desk 상주 루프 + 스크립트 + E2E  (`step-06-desk`)
 
-**테스트 (필수 시나리오 → 테스트).**
-- 조회·저장 직후 종료(커서 저장 전에 예외 주입) → 다음 실행이 같은 멘션을 다시 조회해 처리, 문서는 1개
-- 멘션 3개 중 2번째가 예외 → 1·3 은 처리, 2 는 failures 1건·다음 실행에서 재시도, 3회 후 needs_human
-- 워크플로 완료 후(reviewed) 결과 기록 전 종료 → 다음 실행 already_handled, 결재 문서·게시 없음
-- 같은 멘션 반복 조회(커서 미갱신) → 문서 1개, 워크플로는 미완료일 때만
-- needs_human / returned 는 두 번째 실행에서 건너뜀 → `retry <id> --hint` 후 재개 지점부터 처리 → reviewed
-- 새 멘션 없음 + knowledge_ready 문서 존재 → 복구되어 reviewed
-- reopen 이 reviewed/posted/rejected 를 거부(409), 비-loopback 403
-- 두 번째 데스크 동시 실행 → exit 2, 문서·커서 변화 없음
-- 커서 없음 → backfill 시각으로 조회
+- `desk.py`: `Desk.tick()` — 채널 `poll()` → `run(mention)`; `approvals.list(status=rejected)` → `run(..., rejections, approval_id)`. `run_forever(interval=5)`.
+- `cli.py desk`, `scripts/run_services.sh`(8790, 8791), `scripts/run_desk.sh`, `README.md` 실행법.
+- 테스트: 가짜 채널 둘 + TestClient 로 tick 두 번, 채널 오류 격리.
+- E2E: mock(키 없이) → 실연동(Slack 토큰 + `RFA_LLM_MODE=anthropic`).
 
-**완료 조건.**
-```bash
-uv run pytest
-./scripts/run_services.sh &
-# 멘션 두 개 남긴 뒤, 첫 실행을 강제로 중단(RFA_DESK_CRASH_AFTER=enqueue) → 재실행 → 둘 다 처리
-RFA_LLM_MODE=mock ./scripts/demo_host.sh; uv run rfa-workflow status
-uv run rfa-workflow retry 3 --hint "ORBIT 벤치마크 진행 상황"
-```
+## 검증 (전체)
 
----
-
-## Step 13+ (본선 전)
-
-Internal 대응 데스크와 채널(로컬 파일 흉내), censor_internal, `data/policy/internal/*`, personal 기준 추가 API + 화면, 결재 웹 편집 후 승인.
-
-**재결재 경로** (설계 확정, 구현 대기 — `docs/modules/review-service.md` 상태기계 참고). Step 12 의 `reopen` 전이와 같은 결에서 설계한다:
-- `rejected → drafted` 재작성 루프: 거절 사유를 writer 입력으로 되돌림. store `ALLOWED[DRAFTED]`에 `REJECTED` 추가 + revision 카운터.
-- `POST /reviews/{id}/republish`: 게시 실패로 `approved`에 갇힌 문서 재게시 (loopback 전용). `ALLOWED[POSTED]`는 그대로(`APPROVED`)이므로 엔드포인트만 추가.
-- 결재 웹(Step 6)은 rejected/approved 문서에 각각 "재작성 요청됨" 표시와 "재게시" 버튼 자리를 미리 잡아 둔다.
+1. 단계마다 `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
+2. mock E2E: `scripts/run_services.sh` → `uv run python -m rfa_workflow run --mention-json '{...}'` → `curl :8790/approvals` 에 pending → 웹에서 거절(사유 "릴리즈 날짜") → desk 한 틱 → round 2 초안에 날짜 없음 → 승인 → mock 게시 기록.
+3. 실 E2E: `.env` 에 Slack 토큰 + `RFA_CHANNELS=github,slack RFA_PUBLISHER=live RFA_LLM_MODE=anthropic` → `scripts/run_desk.sh` → Slack `#rfa-test` 에서 `@rfa-desk ORBIT 벤치마크 어때?` → 결재 웹 → 승인 → 스레드 답글.
