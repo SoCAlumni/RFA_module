@@ -76,5 +76,5 @@ services/review/publisher.py  # GithubPublisher: clearance 검증 → create_com
 ## 미정
 
 - 레포당 최근 100건(한 페이지)만 본다. 멘션이 많은 레포면 페이지네이션 필요.
-- at-most-once라서 list 후 처리 중 죽으면 그 멘션은 다시 오지 않는다. 필요하면 review 쪽에서 source_url 중복 확인 방식으로 바꾼다.
+- at-most-once라서 list 후 처리 중 죽으면 그 멘션은 다시 오지 않는다 → **Step 12(멘션 대기열과 복구)** 에서 `list_mentions` 를 순수 조회로 바꾸고, 커서와 대기열을 데스크·review 문서로 옮긴다 (`docs/develop_plan.md`).
 - `since` 저장 위치를 review 서비스로 옮길지.
