@@ -6,7 +6,7 @@
 
 - Python 3.12+, `uv`.
 - GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write.
-- Slack 앱 (Step 4 부터): `person/TODO.md` 의 절차대로 만들고 봇 토큰(`xoxb-`)과 앱 토큰(`xapp-`)을 받는다.
+- Slack 앱 (Step 7 부터): `person/TODO.md` 의 절차대로 만들고 유저 토큰(`xoxp-`)과 앱 토큰(`xapp-`)을 받는다. 봇 계정이 아니라 내 계정으로 동작한다.
 
 ## 설치와 테스트
 

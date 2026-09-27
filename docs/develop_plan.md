@@ -11,6 +11,7 @@
 | 마지막 머지 | Step 5 (PR #18) |
 | 다음 할 일 | Step 4 PR 리뷰·머지 → Step 6 (desk 상주 루프 + GitHub E2E). `.env` 에 `RFA_CHANNELS=github` 추가 필요 |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
+| Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
 ## 규칙
@@ -206,13 +207,17 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 
 ## Step 7: Slack 어댑터 + Slack E2E  (`step-07-slack`)
 
-- `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(bot_token, app_token)`: `start()` 가 `SocketModeClient` 리스너로 `app_mention`/`message`(im) 을 즉시 ack 하고 큐에 넣음 (봇 자신 무시, `<@BOT>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)`, URL `https://slack.com/archives/{C}/p{ts}`.
-- `registry.py` 에 `slack` 추가, `.env.example` 에 `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
-- 테스트: `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload).
-- E2E: `person/TODO.md` 의 Slack 앱으로 `@rfa-desk` 멘션 → 결재 웹 승인 → 스레드 답글.
+**방식: User Token (`xoxp-`).** 봇 계정이 아니라 **나로서** 동작한다 — 나에게 온 DM 과 `@나` 멘션을 받고, 답글도 내 이름으로 단다. GitHub 채널(내 PAT, `@내 아이디` 감지)과 같은 구조. 앱 설정은 `person/TODO.md` 1장.
+
+- **첫 작업 = 수신 스파이크.** user 이벤트가 Socket Mode 로 오는 것은 정황 근거(타 프로젝트 이슈)는 강하지만 공식 문서로 확정하지 못했다. 토큰을 받으면 임시 스크립트로 5분 안에 수신을 확인하고 시작한다. 안 오면 봇 방식(bot scopes + `app_mention`)으로 폴백 — 이벤트 이름과 토큰만 다르다.
+- `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(user_token, app_token)`: 시작 시 `auth.test` 로 내 user ID 획득. `start()` 가 `SocketModeClient`(xapp) 리스너로 user events — `message.im`(내 DM 전부) 과 `message.channels`/`message.groups`(본문에 `<@내ID>` 있는 것만) — 를 즉시 ack 하고 큐에 넣음 (**내가 보낸 메시지 무시** — 비서 답글도 내 이름이므로 이 규칙이 자기 답글 루프 방지를 겸함. `<@내ID>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)` — **내 이름으로** 달림. URL `https://slack.com/archives/{C}/p{ts}`.
+- **`start()` 는 desk 만 부른다.** 결재 서버(LivePublisher)는 `post()` 만 쓴다 — Socket 연결이 두 개면 Slack 이 이벤트를 나눠 보내 desk 가 멘션을 놓친다.
+- `registry.py` 에 `slack` 추가, `.env.example` 에 `SLACK_USER_TOKEN`, `SLACK_APP_TOKEN`.
+- 테스트: `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload — DM, 채널 멘션, 멘션 없는 채널 메시지 무시, 내 메시지 무시).
+- E2E: 다른 계정(팀원 또는 두 번째 계정)이 `#rfa-test` 에서 나를 멘션하거나 나에게 DM → 결재 웹 승인 → 내 이름으로 스레드 답글.
 
 ## 검증 (전체)
 
 1. 단계마다 `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
 2. mock E2E: `scripts/run_services.sh` → `uv run python -m rfa_workflow run --mention-json '{...}'` → `curl :8790/approvals` 에 pending → 웹에서 거절(사유 "릴리즈 날짜") → desk 한 틱 → round 2 초안에 날짜 없음 → 승인 → mock 게시 기록.
-3. 실 E2E: `.env` 에 Slack 토큰 + `RFA_CHANNELS=github,slack RFA_PUBLISHER=live RFA_LLM_MODE=anthropic` → `scripts/run_desk.sh` → Slack `#rfa-test` 에서 `@rfa-desk ORBIT 벤치마크 어때?` → 결재 웹 → 승인 → 스레드 답글.
+3. 실 E2E: `.env` 에 Slack 토큰 + `RFA_CHANNELS=github,slack RFA_PUBLISHER=live RFA_LLM_MODE=anthropic` → `scripts/run_desk.sh` → 다른 계정이 `#rfa-test` 에서 `@<나> ORBIT 벤치마크 어때?` (또는 나에게 DM) → 결재 웹 → 승인 → 내 이름으로 스레드 답글.

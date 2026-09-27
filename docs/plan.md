@@ -35,7 +35,7 @@ GitHub·Slack 에서 멘션을 받아, head agent 에게 검열된 지식을 받
 | 결재 API 보호 | 인증·loopback 제한 없음, CORS 허용 | 다영님 프런트가 다른 포트·기기에서 부름. 승인 호출 차단은 샌드박스 정책 몫 |
 | 흐름 제어 | LangGraph 고정 그래프. LLM 은 초안 작성만 | 자유도가 높으면 탈주 |
 | 실행 위치 | 호스트. 샌드박스 없음 | 샌드박스는 기밀 영역에만 (bird-eye view) |
-| 채널 | GitHub(멘션 폴링) + Slack(Socket Mode, 공개 URL 불필요) | 오늘 저녁 Slack 까지 |
+| 채널 | GitHub(멘션 폴링) + Slack(User Token + Socket Mode — 나로서 수신·게시, 공개 URL 불필요) | 오늘 저녁 Slack 까지. 봇 계정 아님 — 나에게 온 DM·`@나` 멘션을 받고 내 이름으로 답함 |
 | 저장소 | 결재 안건은 JSON 파일 하나씩 (DB 없음) | 데모 규모. v1 store 골격 재사용 |
 | 언어 | Python (FastAPI, LangGraph, slack_sdk) | |
 
