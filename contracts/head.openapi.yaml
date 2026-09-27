@@ -1,0 +1,140 @@
+openapi: 3.1.0
+info:
+  title: RFA head contract (대응 에이전트 → head agent)
+  version: 0.2.0
+  description: |
+    대응 에이전트(desk)가 채널에서 받은 질문에 답할 지식을 얻는 유일한 창구.
+    제공자는 민섭님의 head agent. RFA_module 에는 같은 계약을 지키는 stub(services/head_stub)이 있다.
+
+    - 업무 선택, 실무 에이전트 호출, 검열은 모두 head agent 안에서 끝난다.
+      호출자는 "그대로 써도 되는" knowledge 와 head 가 고른 task 만 받는다.
+    - 사람이 초안을 거절하면 desk 가 같은 질문을 feedback(거절된 초안 + 사유)과 함께 다시 보낸다.
+      head 는 그 사유가 다시 생기지 않게 지식을 다시 낸다.
+    - 5xx/타임아웃이면 desk 가 3회 재시도 후 포기한다. 4xx 는 재시도하지 않는다.
+servers:
+  - url: http://127.0.0.1:8791
+paths:
+  /ask:
+    post:
+      operationId: ask
+      summary: 질문에 답할 검열된 지식을 요청
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AskRequest" }
+            examples:
+              first:
+                summary: 첫 요청
+                value:
+                  question: "ORBIT 벤치마크 결과가 언제쯤 공개되나요? 양자화 후 정확도는요?"
+                  channel: github
+                  audience: public
+                  target: "team/rfa-test#34"
+                  url: "https://github.com/team/rfa-test/issues/34#issuecomment-1"
+                  requester: outside-dev
+                  context:
+                    - author: outside-dev
+                      text: "ORBIT 벤치마크 결과가 언제쯤 공개되나요?"
+                      at: "2026-09-27T08:40:00Z"
+                  feedback: []
+              after-reject:
+                summary: 거절 뒤 재요청
+                value:
+                  question: "ORBIT 벤치마크 결과가 언제쯤 공개되나요? 양자화 후 정확도는요?"
+                  channel: github
+                  audience: public
+                  target: "team/rfa-test#34"
+                  url: "https://github.com/team/rfa-test/issues/34#issuecomment-1"
+                  requester: outside-dev
+                  context: []
+                  feedback:
+                    - draft: "안녕하세요. ORBIT 는 11/3 릴리즈에 맞춰 QAT 를 적용 중입니다."
+                      reason: "릴리즈 날짜가 들어가 있음"
+                      at: "2026-09-27T09:10:00Z"
+      responses:
+        "200":
+          description: 검열이 끝난 지식
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AskResponse" }
+              examples:
+                ok:
+                  value:
+                    knowledge: "ORBIT는 INT4 양자화 후 EM이 소폭 하락했고 QAT로 보완 중이다."
+                    task: { id: orbit, name: "ORBIT 벤치마크" }
+                    refusal: null
+                refused:
+                  value:
+                    knowledge: ""
+                    task: null
+                    refusal: "관련 업무를 찾지 못했습니다"
+        "422":
+          description: 요청 형식 오류
+components:
+  schemas:
+    ChannelKind:
+      type: string
+      enum: [github, slack]
+    Audience:
+      type: string
+      description: 답이 나갈 독자. 채널이 정한다 (github → public, slack → company)
+      enum: [public, company]
+    ThreadMessage:
+      type: object
+      required: [author, text, at]
+      properties:
+        author: { type: string }
+        text: { type: string }
+        at: { type: string, format: date-time }
+    Rejection:
+      type: object
+      description: 사람이 거절한 초안과 그 이유
+      required: [draft, reason, at]
+      properties:
+        draft: { type: string, description: 거절된 초안 전문 }
+        reason: { type: string, description: 사람이 적은 거절 사유 }
+        at: { type: string, format: date-time }
+    TaskRef:
+      type: object
+      description: head agent 가 고른 업무
+      required: [id, name]
+      properties:
+        id: { type: string, examples: [orbit] }
+        name: { type: string, examples: ["ORBIT 벤치마크"] }
+    AskRequest:
+      type: object
+      required: [question, channel, audience, target, url, requester]
+      properties:
+        question: { type: string, description: 채널에 올라온 질문 원문 }
+        channel: { $ref: "#/components/schemas/ChannelKind" }
+        audience: { $ref: "#/components/schemas/Audience" }
+        target:
+          type: string
+          description: "답글이 달릴 자리. github: owner/repo#N, slack: <channel_id>/<thread_ts>"
+          examples: ["team/rfa-test#34", "C0123ABC/1727000000.000100"]
+        url: { type: string, format: uri, description: 질문의 주소 }
+        requester: { type: string, description: 질문한 사람 }
+        context:
+          type: array
+          description: 같은 스레드의 최근 메시지, 오래된 순. 없으면 []
+          items: { $ref: "#/components/schemas/ThreadMessage" }
+        feedback:
+          type: array
+          description: 이 안건에서 거절된 초안들. 첫 요청은 []
+          items: { $ref: "#/components/schemas/Rejection" }
+    AskResponse:
+      type: object
+      required: [knowledge]
+      properties:
+        knowledge:
+          type: string
+          description: 검열이 끝난 텍스트. 그대로 써도 되는 것만. refusal 이 있으면 빈 문자열
+        task:
+          oneOf:
+            - $ref: "#/components/schemas/TaskRef"
+            - type: "null"
+          description: head 가 고른 업무. 못 골랐으면 null
+        refusal:
+          type: [string, "null"]
+          description: 답할 수 없을 때 사유. 없으면 null
