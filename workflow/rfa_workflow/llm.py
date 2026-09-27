@@ -22,6 +22,7 @@ from pydantic import BaseModel
 T = TypeVar("T", bound=BaseModel)
 
 DEFAULT_MODEL = "claude-opus-5"
+ANTHROPIC_API_URL = "https://api.anthropic.com"
 MAX_TOKENS = 16000
 
 
@@ -59,6 +60,14 @@ class AnthropicLLM:
             return getattr(self._client.messages, method)(
                 model=self._model, max_tokens=MAX_TOKENS, **kwargs
             )
+        except anthropic.APIStatusError as exc:
+            # 결재 문서 사유에 남으므로 원인이 보이게 (예: 크레딧 부족, 모델 없음)
+            detail = (
+                str(exc.body.get("error", {}).get("message", ""))
+                if isinstance(exc.body, dict)
+                else ""
+            )
+            raise LLMError(f"{name}: API {exc.status_code} {detail[:160]}".rstrip()) from exc
         except anthropic.APIError as exc:
             raise LLMError(f"{name}: API error {type(exc).__name__}") from exc
 
@@ -151,9 +160,10 @@ def make_llm(env: Mapping[str, str]) -> LLM:
     if mode == "mock":
         return RuleLLM()
     if mode == "anthropic":
-        base_url = env.get("ANTHROPIC_BASE_URL") or None
+        # 빈 값이면 기본 주소를 명시한다. None 을 넘기면 SDK 가 환경변수(빈 문자열)를 다시 읽는다.
+        base_url = env.get("ANTHROPIC_BASE_URL") or ANTHROPIC_API_URL
         api_key = env.get("ANTHROPIC_API_KEY") or None
-        if base_url and not api_key:
+        if base_url != ANTHROPIC_API_URL and not api_key:
             api_key = "unused"  # inference.local: 샌드박스 게이트웨이가 키를 넣는다
         client = anthropic.Anthropic(base_url=base_url, api_key=api_key)
         return AnthropicLLM(client, env.get("RFA_MODEL") or DEFAULT_MODEL)

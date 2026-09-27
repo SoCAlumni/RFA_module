@@ -85,6 +85,22 @@ def test_api_error_after_sdk_retries_becomes_llm_error():
         call_text(AnthropicLLM(SimpleNamespace(messages=Failing())))
 
 
+def test_api_status_error_message_is_kept_for_the_human():
+    import anthropic
+    import httpx2
+
+    class Failing:
+        def create(self, **kwargs):
+            request = httpx2.Request("POST", "https://x")
+            body = {"type": "error", "error": {"message": "Your credit balance is too low"}}
+            raise anthropic.BadRequestError(
+                "400", response=httpx2.Response(400, request=request), body=body
+            )
+
+    with pytest.raises(LLMError, match="writer: API 400 Your credit balance is too low"):
+        call_text(AnthropicLLM(SimpleNamespace(messages=Failing())))
+
+
 def test_make_llm_modes():
     assert isinstance(make_llm({}), RuleLLM)
     gateway = make_llm(
@@ -97,6 +113,15 @@ def test_make_llm_modes():
     assert (keyed._client.api_key, keyed._model) == ("k", "m2")
     with pytest.raises(RuntimeError, match="unknown"):
         make_llm({"RFA_LLM_MODE": "gpt"})
+
+
+def test_empty_base_url_in_env_falls_back_to_default(monkeypatch):
+    """.env 의 `ANTHROPIC_BASE_URL=` (빈 값)이 SDK 에 빈 주소로 들어가지 않는다 (E2E 에서 발견)."""
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "")
+    env = {"RFA_LLM_MODE": "anthropic", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_BASE_URL": ""}
+    llm = make_llm(env)
+    assert str(llm._client.base_url).rstrip("/") == "https://api.anthropic.com"
+    assert llm._client.api_key == "k"
 
 
 def test_rule_llm_keeps_decimals_and_ips_intact():
