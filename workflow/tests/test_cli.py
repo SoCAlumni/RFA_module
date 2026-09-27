@@ -43,3 +43,24 @@ def test_deps_from_env_reads_urls_and_llm_mode():
     defaults = Deps.from_env({"HEAD_URL": ""})  # 빈 값이면 기본 주소
     assert str(defaults.head._http.base_url) == "http://127.0.0.1:8791"
     assert str(defaults.approvals._http.base_url) == "http://127.0.0.1:8790"
+
+
+def test_desk_once_processes_mentions(env, capsys, caplog):
+    class OneShot:
+        kind = "github"
+
+        def poll(self):
+            return [github_mention()]
+
+    with caplog.at_level("INFO"):
+        code = main(["desk", "--once"], env.deps(RuleLLM()), {"github": OneShot()})
+    assert code == 0
+    assert env.approval(1)["status"] == "pending"
+    assert "desk 시작: 채널 github" in caplog.text
+    assert "안건 #1" in caplog.text
+
+
+def test_desk_without_channels_warns(env, caplog):
+    with caplog.at_level("INFO"):
+        assert main(["desk", "--once"], env.deps(RuleLLM()), {}) == 0
+    assert "RFA_CHANNELS 가 비어 있음" in caplog.text
