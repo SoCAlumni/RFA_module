@@ -1,7 +1,7 @@
 [project]
 name = "rfa"
 version = "0.1.0"
-description = "RFA_module workspace root (외부게시 MCP Agent)"
+description = "RFA_module workspace root (대응 에이전트 + 채널 + 결재 백엔드)"
 requires-python = ">=3.12"
 dependencies = ["rfa-common", "rfa-services", "rfa-workflow"]
 
@@ -25,4 +25,4 @@ extend-exclude = ["docs", "reference"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
-testpaths = ["services/tests", "workflow/tests"]
+testpaths = ["services/tests"]  # Step 5 에서 workflow/tests 추가

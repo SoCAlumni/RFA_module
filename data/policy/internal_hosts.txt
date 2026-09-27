@@ -1,4 +1,0 @@
-# 스캐너가 찾을 사내 호스트/도메인. 한 줄에 하나, # 은 주석.
-eval.orbit.internal
-gpu-pool.internal
-corp.example.com
