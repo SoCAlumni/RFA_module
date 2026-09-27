@@ -1,4 +1,4 @@
-"""모든 채널이 지키는 약속. desk 는 poll 로 멘션을 받고, 결재 서버는 post 로 게시한다."""
+"""모든 채널이 지키는 약속. desk 는 start 후 poll 로 멘션을 받고, 결재 서버는 post 로 게시한다."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ class ChannelError(Exception):
 
 class Channel(Protocol):
     kind: ChannelKind
+
+    def start(self) -> None:
+        """멘션을 받기 시작한다 (예: Slack 소켓 연결). desk 만 한 번 부른다 (결재 서버는 X)."""
+        ...
 
     def poll(self) -> list[Mention]:
         """새 멘션. 한 번 돌려준 멘션은 다시 돌려주지 않는다. 각 멘션에 스레드 맥락을 붙인다."""

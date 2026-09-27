@@ -7,9 +7,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 6** (`step-06-desk`) — PR 리뷰 대기 |
-| 마지막 머지 | Step 4 (PR #19) |
-| 다음 할 일 | Step 6 PR 리뷰·머지 → 실제 GitHub 게시 E2E (사람이 승인 → 이슈에 댓글) → Step 7 (Slack, 토큰 필요) |
+| 진행 중 단계 | **Step 7** (`step-07-slack`) — PR 리뷰 대기 |
+| 마지막 머지 | Step 6 (PR #20). 실제 GitHub 게시 E2E 완료 (이슈 #2, 거절 → 재작성 → 승인 → 내 이름으로 댓글) |
+| 다음 할 일 | Step 7 PR 리뷰·머지 → **다른 Slack 계정**으로 Slack E2E (`person/TODO.md` 1-7) → 데모 준비 |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
 | Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
@@ -37,8 +37,8 @@
 | 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | 완료 (PR #17) |
 | 5 | workflow — LangGraph 그래프 (Slack 없이 가능해 4 보다 먼저) | `step-05-workflow` | 완료 (PR #18) |
 | 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 완료 (PR #19) |
-| 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 리뷰 대기 |
-| 7 | Slack 어댑터 (Socket Mode) + Slack E2E | `step-07-slack` | Slack 토큰 필요 |
+| 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 완료 (PR #20) |
+| 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 리뷰 대기 |
 
 ---
 
@@ -214,12 +214,14 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 
 **방식: User Token (`xoxp-`).** 봇 계정이 아니라 **나로서** 동작한다 — 나에게 온 DM 과 `@나` 멘션을 받고, 답글도 내 이름으로 단다. GitHub 채널(내 PAT, `@내 아이디` 감지)과 같은 구조. 앱 설정은 `person/TODO.md` 1장.
 
-- **첫 작업 = 수신 스파이크.** user 이벤트가 Socket Mode 로 오는 것은 정황 근거(타 프로젝트 이슈)는 강하지만 공식 문서로 확정하지 못했다. 토큰을 받으면 임시 스크립트로 5분 안에 수신을 확인하고 시작한다. 안 오면 봇 방식(bot scopes + `app_mention`)으로 폴백 — 이벤트 이름과 토큰만 다르다.
+- **첫 작업 = 수신 스파이크 → 성공 (9/27).** 임시 스크립트로 Socket Mode 연결 후 `#rfa-test` 에 내 이름으로 글을 쓰자 user 이벤트(`type=message, channel_type=channel`, 보낸 사람 = 나)가 들어왔다. 봇 방식 폴백은 필요 없음.
 - `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(user_token, app_token)`: 시작 시 `auth.test` 로 내 user ID 획득. `start()` 가 `SocketModeClient`(xapp) 리스너로 user events — `message.im`(내 DM 전부) 과 `message.channels`/`message.groups`(본문에 `<@내ID>` 있는 것만) — 를 즉시 ack 하고 큐에 넣음 (**내가 보낸 메시지 무시** — 비서 답글도 내 이름이므로 이 규칙이 자기 답글 루프 방지를 겸함. `<@내ID>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)` — **내 이름으로** 달림. URL `https://slack.com/archives/{C}/p{ts}`.
 - **`start()` 는 desk 만 부른다.** 결재 서버(LivePublisher)는 `post()` 만 쓴다 — Socket 연결이 두 개면 Slack 이 이벤트를 나눠 보내 desk 가 멘션을 놓친다.
 - `registry.py` 에 `slack` 추가, `.env.example` 에 `SLACK_USER_TOKEN`, `SLACK_APP_TOKEN`.
-- 테스트: `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload — DM, 채널 멘션, 멘션 없는 채널 메시지 무시, 내 메시지 무시).
-- E2E: 다른 계정(팀원 또는 두 번째 계정)이 `#rfa-test` 에서 나를 멘션하거나 나에게 DM → 결재 웹 승인 → 내 이름으로 스레드 답글.
+- 구현 메모: 내 user ID(`auth.test`)는 `start()` 에서 얻는다 → 결재 서버(post 만)는 시작할 때 Slack 을 부르지 않는다. 표시 이름은 `users.info`(실패하면 ID). 스레드 답글에서 온 멘션은 target 이 **스레드 첫 메시지** 자리. 맥락은 그 스레드(`conversations.replies`)만 — 스레드 없는 채널 멘션·DM 은 맥락 없음. 네트워크 오류(`OSError`)도 `SlackError`(⊂ `ChannelError`) 로 감쌈 → 게시 실패가 502 + 재시도 흐름을 탄다. 채널 약속(`Channel`)에 `start()` 추가 (GitHub 는 할 일 없음), desk CLI 가 루프 전에 모든 채널의 `start()` 를 부른다.
+- 테스트: `test_slack.py` 18 (start·잘못된 토큰·env, 채널 멘션 → Mention(내 태그 제거, 주소, 시각, 독자), DM 은 멘션 없이도, 무시할 것 5종(멘션 없음·**내가 보냄**·수정·봇·메시지 아님)도 ack, 중복 event_id, 이벤트 아닌 요청, 스레드 맥락, 맥락 실패 시 멘션 유지, 이름 조회 실패, start 없이 post, post 실패 2종), registry 8 (slack 켜기·env 누락, 'slack 은 아직 없음' 테스트는 대체).
+- 실제 Slack 확인 (다른 계정 없이 할 수 있는 것): `start()` 연결, **셀프 멘션과 비서 스레드 답글이 poll 에 안 잡힘**(자기 답글 루프 방지), `post()` 로 스레드에 내 이름으로 답글, desk 가 `github,slack` 두 채널로 시작.
+- 남은 E2E: 다른 계정이 `#rfa-test` 에서 나를 멘션하거나 나에게 DM → 결재 웹 승인 → 내 이름으로 스레드 답글.
 
 ## 검증 (전체)
 

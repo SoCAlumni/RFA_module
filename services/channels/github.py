@@ -225,6 +225,9 @@ class GithubChannel:
             GithubClient(config.token), config, MentionTracker(state_dir / "mentions_seen.json")
         )
 
+    def start(self) -> None:
+        """GitHub 는 poll 할 때마다 API 를 부르므로 미리 할 일이 없다."""
+
     def poll(self) -> list[Mention]:
         """새 멘션에 스레드 맥락을 붙인다. 맥락을 못 읽으면 맥락 없이 돌려준다.
 

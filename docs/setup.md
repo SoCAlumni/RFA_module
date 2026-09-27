@@ -1,6 +1,6 @@
 # 셋업과 재현 (v2)
 
-> 단계가 진행되면서 채워진다. 지금은 Step 6 까지 (결재 서버 + head_stub + 대응 에이전트 + GitHub 채널 + desk). Slack 은 Step 7.
+> 지금은 Step 7 까지 (결재 서버 + head_stub + 대응 에이전트 + GitHub·Slack 채널 + desk).
 
 ## 전제
 
@@ -49,6 +49,16 @@ uv run --env-file .env python -m rfa_workflow redo 1                   # → 안
 - 거절하면 다음 틱에 사유를 반영한 새 초안이 올라온다. 실패한 작업은 30초·60초 뒤 다시, 3번째 실패에서 포기한다.
 - 실제 GitHub 에 게시하려면 `.env` 를 `RFA_PUBLISHER=live` 로 바꾸고 run_services.sh 를 다시 띄운다. 승인하면 그 이슈에 **내 계정 이름으로** 댓글이 달린다 (숨김 표시 `<!-- rfa-bot -->` 가 붙어 desk 가 자기 답글에 다시 반응하지 않는다).
 - 이미 본 멘션 기록은 `data/state/mentions_seen.json`. 지우면 최근 24시간 멘션을 다시 가져온다.
+
+## Slack 켜기
+
+1. `person/TODO.md` 1장대로 Slack 앱을 만들고 `.env` 에 `SLACK_USER_TOKEN`(xoxp-), `SLACK_APP_TOKEN`(xapp-) 을 넣는다.
+2. `.env` 의 `RFA_CHANNELS=github,slack` 으로 바꾸고 두 스크립트를 다시 띄운다. desk 로그에 `slack: U… 로 이벤트 받는 중` 이 뜨면 연결된 것.
+3. **다른 계정**이 내가 들어가 있는 채널에서 `@나 ORBIT 벤치마크 어때요?` 라고 쓰거나 나에게 DM 한다 → 결재함에 안건 → 승인하면 그 스레드에 **내 이름으로** 답글.
+
+- 비서는 **내가 보낸 메시지를 전부 무시**한다 (비서 답글도 내 이름이라 이 규칙으로 루프를 막음). 그래서 셀프 멘션으로는 테스트할 수 없다.
+- Slack 은 **desk 가 연결돼 있는 동안 온 멘션만** 확실히 받는다 (꺼져 있을 때 온 것은 놓칠 수 있다). GitHub 는 다음 폴링 때 지난 멘션도 가져온다.
+- Socket 연결은 desk 만 한다. 결재 서버는 게시만 하므로 연결하지 않는다.
 
 head_stub 확인:
 ```bash
