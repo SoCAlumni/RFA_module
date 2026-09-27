@@ -3,7 +3,8 @@ python -m rfa_workflow run --mention-file mention.json
 python -m rfa_workflow redo <approval_id>             # 거절된 안건을 사유를 반영해 다시 쓴다
 python -m rfa_workflow desk [--interval 5] [--once]    # 계속 돌며 멘션·거절 안건 처리
 
-env: HEAD_URL, APPROVALS_URL, RFA_LLM_MODE(mock|anthropic), RFA_MODEL, ANTHROPIC_API_KEY,
+env: HEAD_URL, APPROVALS_URL, RFA_LLM_MODE(mock|openrouter|nvidia|gemini|anthropic), RFA_MODEL,
+     provider 키(OPENROUTER_API_KEY | NVIDIA_API_KEY | GEMINI_API_KEY | ANTHROPIC_API_KEY),
      desk 는 추가로 RFA_CHANNELS 와 각 채널의 env (channels/registry.py)
 run/redo 는 결과(RunResult)를 JSON 한 줄로 출력한다. failed 면 종료 코드 1.
 desk 는 진행 상황을 로그(stderr)로 남긴다. Ctrl+C 로 끝낸다.

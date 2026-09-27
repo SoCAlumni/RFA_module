@@ -16,10 +16,10 @@ GitHub·Slack 에서 멘션을 받아 → head agent 에게 검열된 지식을 
 
 ```bash
 uv sync
-cp .env.example .env          # GitHub 토큰, 감시 레포, (선택) Anthropic 키를 채운다
+cp .env.example .env          # GitHub 토큰, 감시 레포, LLM 키(OpenRouter 무료)를 채운다
 ./scripts/run_services.sh     # 터미널 1: 결재 서버 :8790 + head_stub :8791
 ./scripts/run_desk.sh         # 터미널 2: 채널 멘션 → 결재함, 거절 → 재작성
 ```
 
 브라우저로 http://127.0.0.1:8790/ 을 열고, 감시 레포 이슈에 `@<내 GitHub 아이디>` 로 질문을 남기면 몇 초 뒤 결재함에 초안이 뜬다. 승인하면 그 이슈에 답글이 달리고, 거절하면 사유를 반영해 다시 쓴다.
-기본값은 안전 모드다 (`RFA_LLM_MODE=mock` 키 없이 규칙으로 작성, `RFA_PUBLISHER=mock` 실제로 게시하지 않음). 자세한 것은 [docs/setup.md](docs/setup.md).
+초안은 기본으로 무료 nemotron 이 쓴다 (`RFA_LLM_MODE=openrouter`, [OpenRouter 키](https://openrouter.ai/keys) 무료 발급 — 키 없이 돌리려면 `mock`). `gemini`·`nvidia`·`anthropic` 으로 provider 전환 가능하고, 게시 기본은 안전 모드다 (`RFA_PUBLISHER=mock` 실제로 게시하지 않음). 자세한 것은 [docs/setup.md](docs/setup.md).

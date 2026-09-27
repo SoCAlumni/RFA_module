@@ -67,7 +67,7 @@
 | `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 7 |
 | `services/approvals/` | 결재 서버 + 참조 웹 | 3 |
 | `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 (`run`, 거절 안건 `redo`) | 5 |
-| `workflow/rfa_workflow/llm.py`, `prompts/` | 초안 작성 LLM (Claude, fallback 켬) 과 채널별 말투 | 5 |
+| `workflow/rfa_workflow/llm.py`, `prompts/` | 초안 작성 LLM (기본 무료 nemotron, .env 로 provider 전환) 과 채널별 말투 | 5 |
 | `workflow/rfa_workflow/desk.py` | 상주 루프 | 6 |
 
 ## 3. 흐름: Slack 에서 동료가 "@나 ORBIT 벤치마크 어때?"
