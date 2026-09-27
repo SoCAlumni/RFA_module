@@ -26,9 +26,18 @@ cp .env.example .env && chmod 600 .env
 
 `.env`는 gitignore라 커밋되지 않는다. 키를 채운 뒤의 각 절 끝 `[AI]` 검증 명령은 값 노출 없이 유효성만 확인한다.
 
-## 2. GitHub — fine-grained PAT
+## 2. GitHub — 받기 모드에 따라 토큰이 다르다
 
-준비물: 감시할 테스트 레포. `[사람]` 본인 계정에 public 레포 하나 만들기(Issues 켜짐이 기본). 팀 공용 `SoCAlumni/RFA_test`를 쓰려면 관리자에게 협업자 초대를 요청해도 된다.
+`RFA_GITHUB_MODE` 로 고른다:
+
+| 모드 | 무엇을 받나 | 토큰 |
+|---|---|---|
+| `mentions` (기본) | `RFA_GITHUB_REPOS` 레포에서 `@나` 가 든 글 (남·나 모두 — 혼자 데모 가능) | **fine-grained PAT** (레포 한정, 최소 권한) |
+| `notifications` | **내 알림함** — 남이 보낸 멘션, 내가 연 이슈/PR 의 댓글, 담당 지정, 리뷰 요청을 레포 무관하게. 셀프 멘션은 `RFA_GITHUB_REPOS` 레포에서 스캔으로 보탬 | **classic PAT** — 알림 API 는 "personal access token (classic)만 지원"(공식 문서). 권한 `notifications` + `public_repo` (비공개 레포는 `repo`) |
+
+공통 준비물: 테스트 레포. `[사람]` 본인 계정에 public 레포 하나 만들기(Issues 켜짐이 기본). 팀 공용 `SoCAlumni/RFA_test`를 쓰려면 관리자에게 협업자 초대를 요청해도 된다.
+
+### 2-1. mentions 모드 — fine-grained PAT
 
 `[사람]` 발급 (클릭 순서):
 1. github.com 우상단 프로필 → **Settings**
@@ -40,25 +49,43 @@ cp .env.example .env && chmod 600 .env
 
 `[사람]` `.env`에 채우기:
 ```
+RFA_GITHUB_MODE=mentions
 GITHUB_TOKEN=github_pat_...
-RFA_GITHUB_LOGIN=내_github_아이디      # 이 아이디를 @멘션하면 비서가 받는다
-RFA_GITHUB_REPOS=owner/테스트레포
+RFA_GITHUB_REPOS=owner/테스트레포      # 이 레포에서 @나 를 찾는다 (필수)
+RFA_GITHUB_LOGIN=                     # 선택 — 비우면 토큰으로 자동 감지
 ```
 
-`[AI]` 검증 (값 노출 없음):
+### 2-2. notifications 모드 — classic PAT
+
+`[사람]` 발급 (클릭 순서):
+1. github.com → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** → **Generate new token (classic)**
+2. 이름 아무거나, **Expiration** 30일 정도
+3. **Select scopes** 에서 체크: **`notifications`** + **`public_repo`** (비공개 레포도 쓰면 `repo` 전체)
+4. **Generate token** → `ghp_...` 복사
+
+`[사람]` `.env`에 채우기:
+```
+RFA_GITHUB_MODE=notifications
+GITHUB_TOKEN=ghp_...
+RFA_GITHUB_REPOS=owner/테스트레포      # 셀프 멘션(내가 쓴 @나)을 받을 레포. 비우면 알림만
+```
+
+주의: 알림은 **자기 행동에는 오지 않는다** — 남이 보낸 것은 알림으로, 내가 나를 멘션한 것은 위 레포 스캔으로 받는다. 폴링 주기는 GitHub 이 정한다(X-Poll-Interval, 보통 60초) — 멘션 후 안건까지 최대 1분쯤 걸릴 수 있다.
+
+### 2-3. `[AI]` 검증 (두 모드 공통, 값 노출 없음)
+
 ```bash
 uv run --env-file .env python -c "
 import os
-from datetime import UTC, datetime
 from pathlib import Path
 from channels.github import GithubChannel
 ch = GithubChannel.from_env(os.environ, Path('/tmp'))
-ch.client.issues_since(ch.config.repos[0], datetime.now(UTC))
-print('GitHub 토큰·레포 OK:', ch.config.repos)"
+ch.start()
+print('GitHub OK — 모드:', ch.config.mode, '| 계정:', ch.login, '| 레포:', ch.config.repos)"
 ```
-`OK`가 나오면 유효하다. 오류에 401이 보이면 토큰, 404면 레포 이름을 다시 봐라.
+401 이면 토큰이 틀린 것. notifications 모드에서 **403 "Resource not accessible by personal access token"** 이면 십중팔구 fine-grained 토큰을 그대로 쓰고 있는 것이다 — classic 으로 재발급 (실측한 오류 문구다).
 
-주의: **classic PAT이 아니라 fine-grained**다. (지름길: `gh` CLI에 이미 로그인돼 있다면 `GITHUB_TOKEN="$(gh auth token)"`도 동작하지만, 계정 전체 레포 권한이라 데모 임시용으로만.)
+(지름길: `gh` CLI 에 이미 로그인돼 있다면 `GITHUB_TOKEN="$(gh auth token)"` 은 classic 계열이라 notifications 모드에서도 대체로 동작 — 계정 전체 권한이라 데모 임시용으로만.)
 
 ## 3. LLM provider 키 — 초안을 실제 모델이 쓰게
 

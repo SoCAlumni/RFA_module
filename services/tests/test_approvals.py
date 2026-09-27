@@ -8,7 +8,14 @@ from approvals.app import create_app
 from approvals.publisher import LivePublisher, MockPublisher, PublishError, make_publisher
 from approvals.store import MAX_ROUNDS
 from channels.base import ChannelError
-from channels.github import BOT_MARKER, GithubChannel, GithubClient, GithubConfig, MentionTracker
+from channels.github import (
+    BOT_MARKER,
+    GithubChannel,
+    GithubClient,
+    GithubConfig,
+    MentionTracker,
+    NotificationTracker,
+)
 from fake_github import REPO, FakeGithub
 from fastapi.testclient import TestClient
 
@@ -366,8 +373,13 @@ def test_approve_posts_to_github_through_live_publisher(tmp_path):
     """결재 서버 → LivePublisher → GithubChannel → (가짜) GitHub 댓글. 실패하면 502 후 재시도."""
     fake = FakeGithub(fail_post=502)
     client = GithubClient("t", transport=fake.transport())
-    config = GithubConfig(token="t", login="zetwhite", repos=(REPO,))
-    channel = GithubChannel(client, config, MentionTracker(tmp_path / "seen.json"))
+    config = GithubConfig(token="t", repos=(REPO,))
+    channel = GithubChannel(
+        client,
+        config,
+        NotificationTracker(tmp_path / "noti_seen.json"),
+        MentionTracker(tmp_path / "seen.json"),
+    )
     app = TestClient(create_app(tmp_path, publisher=LivePublisher({"github": channel}), env={}))
     create(app, {**GITHUB, "target": f"{REPO}#34"})  # 가짜 GitHub 는 REPO 하나만 흉내 낸다
 

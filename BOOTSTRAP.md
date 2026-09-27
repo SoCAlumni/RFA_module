@@ -84,7 +84,7 @@ uv run --env-file .env python -m rfa_workflow run --mention-json '{
 | 부분 | 상태 | 비고 |
 |---|---|---|
 | 대응 에이전트 그래프, desk, 결재 서버 | **진짜** | GitHub·Slack 실 E2E 완료 (2026-09-27) |
-| GitHub·Slack 채널 | **진짜** | Slack은 봇이 아니라 "나"(User Token)로 동작 |
+| GitHub·Slack 채널 | **진짜** | 둘 다 "나"로 동작. GitHub는 두 모드(멘션 스캔 / 내 알림함 폴링, `RFA_GITHUB_MODE`) |
 | 지식 서버 `services/head_stub/` | **대역** | 키워드 매칭. **검열 안 함** — 그래서 첫 초안에 기밀이 섞여 사람이 거절하는 장면이 된다. 질문을 `ORBIT벤치마크`처럼 붙여 쓰면 업무를 못 찾는 한계 있음. 민섭님 head agent가 대체 |
 | 기밀 검열 | **이 레포에 없음** | head agent(민섭님) 소관. `/ask` 응답의 knowledge는 검열이 끝난 것으로 취급한다 |
 | 결재 웹 `:8790/` | **참조용** | 다영님 프런트가 대체. API 사용 예시로 유지 |
