@@ -1,6 +1,6 @@
 # 토큰·비밀값 가이드 — 어디서 어떻게 만드나
 
-> **전제**: 토큰 발급은 세 서비스(GitHub, Anthropic, Slack) 모두 로그인 뒤 웹 UI라 **사람만 할 수 있다.**
+> **전제**: 토큰 발급은 어느 서비스(GitHub, LLM provider, Slack)든 로그인 뒤 웹 UI라 **사람만 할 수 있다.**
 > 이 문서는 AI 어시스턴트가 읽고 ① `[사람]` 표시 단계는 사람에게 클릭을 정확히 불러주고 ② `[AI]` 표시 단계는 자기가 실행하도록 쓰였다.
 > 검증 명령은 토큰 값을 화면에 출력하지 않는다. **토큰 값을 채팅·이슈·커밋에 붙여넣지 마라 — AI에게도.**
 
@@ -10,7 +10,8 @@
 |---|---|---|
 | 테스트·개발·API 구경 | **없음** | — |
 | mock 데모 (전체 흐름, 게시는 기록만) | **없음** | — |
-| 실제 Claude가 초안 작성 | `ANTHROPIC_API_KEY` + `RFA_LLM_MODE=anthropic` | mock 규칙이 초안 작성 |
+| 실제 LLM이 초안 작성 (무료) | `OPENROUTER_API_KEY` + `RFA_LLM_MODE=openrouter` (기본) | mock 규칙이 초안 작성 |
+| 다른 LLM provider 로 전환 | `NVIDIA_API_KEY` \| `GEMINI_API_KEY` \| `ANTHROPIC_API_KEY` + `RFA_LLM_MODE=nvidia\|gemini\|anthropic` | — |
 | GitHub 실연동 (멘션 수신·댓글 게시) | `GITHUB_TOKEN`, `RFA_GITHUB_LOGIN`, `RFA_GITHUB_REPOS` + `RFA_CHANNELS`에 `github` | github 채널이 시작 시 오류 |
 | Slack 실연동 (DM·멘션 수신·답글) | `SLACK_USER_TOKEN`, `SLACK_APP_TOKEN` + `RFA_CHANNELS`에 `slack` | slack 채널이 시작 시 오류 |
 | 실제 채널에 게시까지 | 위 채널 키 + `RFA_PUBLISHER=live` | `mock`이면 게시 기록만 |
@@ -59,13 +60,27 @@ print('GitHub 토큰·레포 OK:', ch.config.repos)"
 
 주의: **classic PAT이 아니라 fine-grained**다. (지름길: `gh` CLI에 이미 로그인돼 있다면 `GITHUB_TOKEN="$(gh auth token)"`도 동작하지만, 계정 전체 레포 권한이라 데모 임시용으로만.)
 
-## 3. Anthropic — Claude API 키
+## 3. LLM provider 키 — 초안을 실제 모델이 쓰게
 
-`[사람]`:
+`RFA_LLM_MODE` 로 provider 를 고른다. 모델은 provider 별 기본값이 있어 `RFA_MODEL` 은 비워 둬도 된다.
+
+**OpenRouter (기본, 무료 nemotron)** `[사람]`:
+1. https://openrouter.ai 가입 → https://openrouter.ai/keys → **Create Key** → 복사 (무료, 카드 불필요)
+2. `.env`: `OPENROUTER_API_KEY=...`, `RFA_LLM_MODE=openrouter` (기본 모델 `nvidia/nemotron-3.5-lightning:free`, 무료라 요청 수 제한 있음)
+
+**NVIDIA 공식 (nemotron)** `[사람]`:
+1. https://build.nvidia.com 에서 NVIDIA 계정 로그인 → 모델 페이지에서 **Get API Key** → 복사 (무료 크레딧)
+2. `.env`: `NVIDIA_API_KEY=...`, `RFA_LLM_MODE=nvidia` (기본 모델 `nvidia/nemotron-3.5-lightning-30b-a3b`)
+
+**Gemini** `[사람]`:
+1. https://aistudio.google.com/apikey → **Create API key** → 복사
+2. `.env`: `GEMINI_API_KEY=...`, `RFA_LLM_MODE=gemini` (기본 모델 `gemini-2.5-flash`)
+
+**Anthropic (Claude)** `[사람]`:
 1. https://console.anthropic.com → **API Keys** → **Create Key** → 복사 (크레딧이 있어야 호출된다)
-2. `.env`: `ANTHROPIC_API_KEY=...`, `RFA_LLM_MODE=anthropic` (모델은 `RFA_MODEL=claude-sonnet-4-6`, 팀 결정)
+2. `.env`: `ANTHROPIC_API_KEY=...`, `RFA_LLM_MODE=anthropic` (기본 모델 `claude-sonnet-4-6`)
 
-`[AI]` 검증 — 서비스 켠 뒤 멘션 하나를 돌려 본다 (실 호출 한 번, 몇 센트):
+`[AI]` 검증 — 서비스 켠 뒤 멘션 하나를 돌려 본다 (실 호출 한 번, openrouter/nvidia 는 무료):
 ```bash
 ./scripts/run_services.sh   # 다른 터미널
 uv run --env-file .env python -m rfa_workflow run --mention-json '{"channel":"slack","target":"C0123ABC/1727000000.000100","author":"t","text":"ORBIT 벤치마크 진행 어때요?","url":"https://slack.com/archives/C0123ABC/p1727000000000100","created_at":"2026-09-27T10:00:00Z"}'

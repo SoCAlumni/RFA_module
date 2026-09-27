@@ -1,14 +1,18 @@
+import json
 from types import SimpleNamespace
 
 import anthropic
+import httpx
 import httpx2
 import pytest
 from rfa_common.contracts import AskResponse
 from rfa_workflow.llm import (
     DEFAULT_MODEL,
     FALLBACK_BETA,
+    OPENAI_COMPAT_PROVIDERS,
     AnthropicLLM,
     LLMError,
+    OpenAICompatLLM,
     RuleLLM,
     make_llm,
     prompt,
@@ -97,6 +101,82 @@ def test_anthropic_connection_error():
         call(llm)
 
 
+def openai_compat_with(handler) -> tuple[OpenAICompatLLM, list[httpx.Request]]:
+    """MockTransport 를 붙인 OpenAICompatLLM. handler 는 응답(dict|Response)이거나 호출 가능."""
+    seen: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if isinstance(handler, httpx.Response):
+            return handler
+        return httpx.Response(200, json=handler)
+
+    model = "nvidia/nemotron-3.5-lightning:free"
+    llm = OpenAICompatLLM("https://openrouter.ai/api/v1", "KEY", model)
+    llm._client = httpx.Client(
+        base_url="https://openrouter.ai/api/v1",
+        headers={"Authorization": "Bearer KEY"},
+        transport=httpx.MockTransport(respond),
+    )
+    return llm, seen
+
+
+def completion(content, finish_reason: str = "stop") -> dict:
+    return {"choices": [{"finish_reason": finish_reason, "message": {"content": content}}]}
+
+
+def test_openai_compat_request_shape():
+    llm, seen = openai_compat_with(completion(" 안녕하세요. 답입니다. "))
+    out = llm.text(name="writer", system="SYS", user="USER", context={})
+    assert out == "안녕하세요. 답입니다."
+    [request] = seen
+    assert str(request.url) == "https://openrouter.ai/api/v1/chat/completions"
+    assert request.headers["Authorization"] == "Bearer KEY"
+    assert json.loads(request.content) == {
+        "model": "nvidia/nemotron-3.5-lightning:free",
+        "max_tokens": 16000,
+        "messages": [
+            {"role": "system", "content": "SYS"},
+            {"role": "user", "content": "USER"},
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "response, message",
+    [
+        (completion("잘린", "length"), "writer: output truncated"),
+        (completion("", "content_filter"), "writer: model refused"),
+        (completion("  "), "writer: empty response"),
+        (completion(None), "writer: empty response"),  # 일부 서버는 content 를 null 로 준다
+        ({"choices": []}, "writer: empty response"),
+    ],
+)
+def test_openai_compat_bad_responses(response, message):
+    llm, _ = openai_compat_with(response)
+    with pytest.raises(LLMError, match=message):
+        llm.text(name="writer", system="S", user="U", context={})
+
+
+def test_openai_compat_status_error_shows_cause():
+    body = {"error": {"message": "No auth credentials found"}}
+    llm, _ = openai_compat_with(httpx.Response(401, json=body))
+    with pytest.raises(LLMError, match="writer: API 401 No auth credentials found"):
+        llm.text(name="writer", system="S", user="U", context={})
+
+
+def test_openai_compat_connection_error():
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=request)
+
+    llm = OpenAICompatLLM("https://openrouter.ai/api/v1", "KEY", "m")
+    llm._client = httpx.Client(
+        base_url="https://openrouter.ai/api/v1", transport=httpx.MockTransport(boom)
+    )
+    with pytest.raises(LLMError, match="writer: API error ConnectError"):
+        llm.text(name="writer", system="S", user="U", context={})
+
+
 def test_rule_llm_copies_knowledge_or_declines():
     rule = RuleLLM()
     ok = rule.text(name="writer", system="", user="", context={"ask": AskResponse(knowledge="K.")})
@@ -119,6 +199,23 @@ def test_make_llm():
     assert other._model == "m"
     with pytest.raises(RuntimeError, match="unknown RFA_LLM_MODE"):
         make_llm({"RFA_LLM_MODE": "gpt"})
+
+
+@pytest.mark.parametrize("mode", ["openrouter", "nvidia", "gemini"])
+def test_make_llm_openai_compat_providers(mode):
+    base_url, key_var, default_model = OPENAI_COMPAT_PROVIDERS[mode]
+    llm = make_llm({"RFA_LLM_MODE": mode, key_var: "k"})
+    assert isinstance(llm, OpenAICompatLLM)
+    assert llm._model == default_model
+    assert llm._base_url == base_url
+    assert llm._client.headers["Authorization"] == "Bearer k"
+    overridden = make_llm({"RFA_LLM_MODE": mode, key_var: "k", "RFA_MODEL": "m"})
+    assert overridden._model == "m"
+
+
+def test_default_free_model_is_nemotron():
+    llm = make_llm({"RFA_LLM_MODE": "openrouter"})
+    assert llm._model == "nvidia/nemotron-3.5-lightning:free"
 
 
 def test_prompts_exist():

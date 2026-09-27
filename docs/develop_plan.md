@@ -39,7 +39,8 @@
 | 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 완료 (PR #19) |
 | 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 완료 (PR #20) |
 | 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 완료 (PR #21) |
-| 8 | AI 온보딩 문서 (BOOTSTRAP, tokens, Slack 매니페스트) | `step-08-bootstrap` | 리뷰 대기 (PR #22) |
+| 8 | AI 온보딩 문서 (BOOTSTRAP, tokens, Slack 매니페스트) | `step-08-bootstrap` | 완료 (PR #22) |
+| 9 | LLM provider 전환 (.env) — 무료 nemotron 기본, gemini·claude 선택 | `step-09-llm-providers` | 진행 중 |
 
 ---
 
@@ -102,7 +103,7 @@ workflow/rfa_workflow/
   desk.py         상주 루프 (채널 poll + rejected 폴링)          ← Step 6
   clients.py      HeadClient · ApprovalsClient
   deps.py         head · approvals · llm 묶음 (env 에서)
-  llm.py          AnthropicLLM(fallbacks) · RuleLLM(mock)
+  llm.py          OpenAICompatLLM(openrouter·nvidia·gemini) · AnthropicLLM(fallbacks) · RuleLLM(mock)
   prompts/        writer.md · style_github.md · style_slack.md
   cli.py          run / redo (Step 6 에서 desk)
 ```
@@ -224,6 +225,13 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 - 실제 Slack 확인 (다른 계정 없이 할 수 있는 것): `start()` 연결, **셀프 멘션과 비서 스레드 답글이 poll 에 안 잡힘**(자기 답글 루프 방지), `post()` 로 스레드에 내 이름으로 답글, desk 가 `github,slack` 두 채널로 시작.
 - **Slack E2E 완료** (실제 Claude, 실제 게시): 다른 계정(김아무개)이 `#rfa-test` 에서 `@roonm813` 멘션 → desk 가 6초 뒤 안건 #1 → 승인 → 그 스레드에 **roonm813 이름으로** 답글 → 자기 답글에는 반응 안 함.
 - 알게 된 것: 질문을 `ORBIT벤치마크` 처럼 **붙여 쓰면** head_stub 이 업무를 못 찾는다 (영문·한글이 한 단어로 묶여 문서의 `ORBIT 벤치마크` 와 안 맞음) → refusal → Claude 가 정중히 답 못 한다고 씀. 흐름은 정상, stub 의 단어 맞추기 한계. 민섭님 head agent 로 바뀌면 사라지는 문제라 고치지 않음 (데모 때는 띄어 쓰기).
+
+## Step 9: LLM provider 전환  (`step-09-llm-providers`)
+
+- 기본 모델을 무료로 (9/27 사용자 결정): `RFA_LLM_MODE=openrouter` + `nvidia/nemotron-3.5-lightning:free` 가 `.env` 기본. 코드상 기본(env 비었을 때)은 여전히 mock — 테스트·CI 가 키 없이 돈다.
+- `llm.py` 에 `OpenAICompatLLM` 하나 추가 (httpx, 새 의존성 없음) — OpenAI chat/completions 호환이라 openrouter·nvidia(integrate.api.nvidia.com)·gemini(OpenAI 호환 엔드포인트) 를 전부 커버. 오류 계약은 AnthropicLLM 과 동일 (4xx/5xx·연결 오류·content_filter→refused·length→truncated·빈 응답 → `LLMError`).
+- 모델은 provider 별 기본값 (`RFA_MODEL` 비우면: openrouter/nvidia→nemotron, gemini→gemini-2.5-flash, anthropic→claude-sonnet-4-6). Claude 는 `RFA_LLM_MODE=anthropic` 으로 그대로 선택 가능 (9/27 결정: 기본만 nemotron 으로 교체, anthropic 유지).
+- 키 발급 절차는 docs/tokens.md 3절에 provider 별로 정리 (openrouter.ai/keys 무료 · build.nvidia.com · aistudio.google.com/apikey · console.anthropic.com).
 
 ## 검증 (전체)
 

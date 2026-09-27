@@ -6,7 +6,7 @@
 ## 1. 이 레포가 뭔가
 
 NVIDIA 해커톤 팀 프로젝트(개인 비서 멀티에이전트)의 **대응 에이전트 모듈**이다.
-GitHub·Slack에서 "나"에게 온 멘션·DM을 받아 → head agent에게 검열된 지식을 받고 → Claude가 채널 말투로 답을 쓰고 → **사람 결재**를 거쳐 → 그 채널에 내 이름으로 답글을 단다. 거절되면 사유를 반영해 다시 쓴다.
+GitHub·Slack에서 "나"에게 온 멘션·DM을 받아 → head agent에게 검열된 지식을 받고 → LLM(기본: 무료 nemotron, .env로 Gemini·Claude 전환)이 채널 말투로 답을 쓰고 → **사람 결재**를 거쳐 → 그 채널에 내 이름으로 답글을 단다. 거절되면 사유를 반영해 다시 쓴다.
 
 ```
    GitHub / Slack
@@ -77,7 +77,7 @@ uv run --env-file .env python -m rfa_workflow run --mention-json '{
 그다음 브라우저에서 **http://127.0.0.1:8790/** 을 연다:
 안건 #1의 초안에 기밀(11/3 릴리즈, GPU 주소)이 보인다 → 사유 "릴리즈 날짜와 GPU 주소 빼 주세요"로 **거절** → 5초 안에 desk가 다시 쓴 2번째 초안이 온다(기밀 빠짐) → **승인** → `mock://...`으로 게시 기록.
 
-이게 전체 흐름이다. 실제 GitHub·Slack·Claude로 승격하려면 → [docs/tokens.md](docs/tokens.md).
+이게 전체 흐름이다. 실제 GitHub·Slack·LLM으로 승격하려면 → [docs/tokens.md](docs/tokens.md).
 
 ## 5. 무엇이 진짜고 무엇이 대역(stub)인가
 

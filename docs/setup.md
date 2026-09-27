@@ -5,7 +5,7 @@
 ## 전제
 
 - Python 3.12+, `uv`. (처음이면 [BOOTSTRAP.md](../BOOTSTRAP.md) 의 5분 실행부터)
-- 토큰 없이(mock) 전체 흐름이 돈다. 실연동에 필요한 토큰 발급은 [docs/tokens.md](tokens.md) — GitHub PAT, Anthropic 키, Slack(User Token, 매니페스트 포함) 클릭 단위 안내.
+- 토큰 없이(mock) 전체 흐름이 돈다. 실연동에 필요한 토큰 발급은 [docs/tokens.md](tokens.md) — GitHub PAT, LLM provider 키(OpenRouter 무료 등), Slack(User Token, 매니페스트 포함) 클릭 단위 안내.
 
 ## 설치와 테스트
 
@@ -34,7 +34,7 @@ uv run --env-file .env python -m rfa_workflow run --mention-json "$M"   # → �
 # 결재 웹에서 거절(사유 "릴리즈 날짜가 들어가 있음") 후
 uv run --env-file .env python -m rfa_workflow redo 1                   # → 안건 #1 round 2
 ```
-`RFA_LLM_MODE=mock` 이면 키 없이, `anthropic` 이면 Claude 가 답을 쓴다.
+`RFA_LLM_MODE=mock` 이면 키 없이 규칙이, `openrouter`(기본, 무료 nemotron)·`nvidia`·`gemini`·`anthropic` 이면 실제 LLM 이 답을 쓴다. 키 발급: [docs/tokens.md](tokens.md).
 
 ## desk (계속 돌리기)
 
