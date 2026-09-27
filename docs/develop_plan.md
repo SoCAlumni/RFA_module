@@ -40,7 +40,7 @@
 | 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 완료 (PR #20) |
 | 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 완료 (PR #21) |
 | 8 | AI 온보딩 문서 (BOOTSTRAP, tokens, Slack 매니페스트) | `step-08-bootstrap` | 완료 (PR #22) |
-| 9 | LLM provider 전환 (.env) — 무료 nemotron 기본, gemini·claude 선택 | `step-09-llm-providers` | 진행 중 |
+| 9 | LLM provider 전환 (.env) — 무료 nemotron 기본, gemini·claude 선택 | `step-09-llm-providers` | 리뷰 대기 (PR #23) |
 
 ---
 
