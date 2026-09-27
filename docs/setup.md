@@ -1,6 +1,6 @@
 # 셋업과 재현 (v2)
 
-> 단계가 진행되면서 채워진다. 지금은 Step 2 까지 (head_stub 만 실행 가능).
+> 단계가 진행되면서 채워진다. 지금은 Step 3 까지 (결재 서버 + head_stub).
 
 ## 전제
 
@@ -20,8 +20,12 @@ uv run pytest -q
 
 ```bash
 cp .env.example .env && $EDITOR .env
-./scripts/run_services.sh          # head_stub(8791). Ctrl+C 로 종료. 로그: data/state/logs/
+./scripts/run_services.sh          # approvals(8790) + head_stub(8791). Ctrl+C 로 종료. 로그: data/state/logs/
 ```
+
+v1 에서 쓰던 `.env` 라면 `RFA_PUBLISHER=github` 를 `RFA_PUBLISHER=mock` 으로 바꾼다 (v2 는 `mock` 만 안다. 실제 게시 `live` 는 Step 4).
+
+결재 웹: http://127.0.0.1:8790/ — 안건은 desk 가 만든다 (Step 6). 그 전에는 `curl -X POST :8790/approvals` 로 직접 넣어 볼 수 있다 (예시 본문은 `services/tests/test_approvals.py` 의 `GITHUB`).
 
 head_stub 확인:
 ```bash
@@ -35,7 +39,7 @@ curl -s -X POST http://127.0.0.1:8791/ask -H 'content-type: application/json' -d
 ```
 `feedback` 를 빼고 보내면 `11/3` 릴리즈 문장이 knowledge 에 들어 있고, 넣으면 빠진다.
 
-API 문서: 서버가 떠 있으면 http://127.0.0.1:8791/docs. 계약 전체는 https://socalumni.github.io/RFA_module/.
+API 문서: 서버가 떠 있으면 http://127.0.0.1:8790/docs, http://127.0.0.1:8791/docs. 계약 전체는 https://socalumni.github.io/RFA_module/.
 
 ## GitHub 공유
 

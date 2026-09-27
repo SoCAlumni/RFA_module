@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RFA 결재함</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec;
+    --accent: #3b5bdb; --ok: #2b8a3e; --warn: #e67700; --bad: #c92a2a; --chip: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171d; --panel: #1c2028; --text: #e6e9ef; --muted: #98a1b3; --line: #2c323d;
+      --accent: #7b93ff; --ok: #69db7c; --warn: #ffa94d; --bad: #ff6b6b; --chip: #262b35;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px;
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 17px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  main { display: grid; grid-template-columns: 200px 340px 1fr; flex: 1; min-height: 0; }
+  #filters, #list { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+  #filters { padding: 12px 0; }
+  #filters h4 { margin: 12px 16px 4px; font-size: 11px; color: var(--muted); font-weight: 600; }
+  .filter { display: flex; justify-content: space-between; padding: 5px 16px; cursor: pointer; }
+  .filter:hover { background: var(--chip); }
+  .filter.on { background: var(--chip); box-shadow: inset 3px 0 0 var(--accent); font-weight: 600; }
+  .filter .n { color: var(--muted); font-size: 12px; }
+  .empty { padding: 24px; color: var(--muted); }
+  .item { padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .item:hover { background: var(--chip); }
+  .item.selected { background: var(--chip); box-shadow: inset 3px 0 0 var(--accent); }
+  .item .row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .item .target { font-weight: 600; font-size: 13px; }
+  .item .q { color: var(--muted); font-size: 12px; margin-top: 4px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+           background: var(--chip); color: var(--muted); }
+  .badge.wait { background: var(--warn); color: #fff; }
+  .badge.done { background: var(--ok); color: #fff; }
+  .badge.bad { background: var(--bad); color: #fff; }
+  .new { font-size: 10px; font-weight: 700; color: var(--accent); margin-left: 6px; }
+  #detail { overflow-y: auto; padding: 20px 28px 60px; }
+  #detail h2 { margin: 0 0 4px; font-size: 18px; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 18px; }
+  .meta a { color: var(--accent); }
+  section.step { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+                 padding: 14px 16px; margin-bottom: 12px; }
+  section.step h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600;
+                    display: flex; justify-content: space-between; }
+  section.step h3 .who { font-weight: 400; }
+  .text { white-space: pre-wrap; word-break: break-word; }
+  .msg { border-left: 3px solid var(--line); padding-left: 10px; margin: 6px 0; font-size: 13px; }
+  .msg b { font-weight: 600; }
+  .rej { border-left: 3px solid var(--bad); padding-left: 10px; margin: 8px 0; font-size: 13px; }
+  .rej .reason { font-weight: 600; }
+  .rej .old { color: var(--muted); margin-top: 4px; }
+  .actions { display: flex; flex-direction: column; gap: 10px; }
+  .actions textarea { width: 100%; min-height: 60px; padding: 8px; border-radius: 8px;
+                      border: 1px solid var(--line); background: var(--bg); color: var(--text);
+                      font: inherit; }
+  .actions .buttons { display: flex; gap: 8px; }
+  button { font: inherit; padding: 8px 18px; border-radius: 8px; border: 0; cursor: pointer; }
+  button.approve { background: var(--ok); color: #fff; }
+  button.reject { background: var(--bad); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .notice { font-size: 13px; color: var(--muted); }
+  .error { color: var(--bad); font-size: 13px; }
+  .timeline { font-size: 12px; color: var(--muted); margin: 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>RFA 결재함</h1>
+  <span class="sub">참조 화면 — 같은 API 를 쓰는 프런트의 예시. 3초마다 새로고침.</span>
+</header>
+<main>
+  <nav id="filters"></nav>
+  <nav id="list"><div class="empty">불러오는 중…</div></nav>
+  <article id="detail"><div class="empty">가운데에서 안건을 고르세요.</div></article>
+</main>
+<script>
+"use strict";
+// 이 페이지는 외부(GitHub, Slack, LLM)에서 온 텍스트를 보여준다. 모든 데이터는 textContent 로만 넣는다.
+
+const POLL_MS = 3000;
+const STATUS = {
+  pending: ["결재 필요", "wait"], approved: ["게시 중", "wait"], posted: ["게시됨", "done"],
+  rejected: ["다시 쓰는 중", ""], closed: ["닫힘", "bad"],
+};
+const CHANNEL = { github: "GitHub", slack: "Slack" };
+
+let approvals = [];
+let summary = { by_channel: {}, by_task: {} };
+let filter = { kind: null, value: null };          // kind: status | channel | task
+let selectedId = Number(location.hash.slice(1)) || null;
+let renderedKey = null;         // 선택 안건을 마지막으로 그린 버전 (status + events 수)
+const seen = new Set();         // 첫 로드 이후 새로 나타난 안건은 NEW 표시
+let firstLoad = true;
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const c of children) if (c != null) node.append(c);
+  return node;
+}
+
+function badge(a) {
+  const [label, cls] = STATUS[a.status] || [a.status, ""];
+  return el("span", { class: `badge ${cls}`, text: label });
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleString("ko-KR", {
+    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function step(title, who, ...body) {
+  return el("section", { class: "step" },
+    el("h3", {}, el("span", { text: title }), who ? el("span", { class: "who", text: who }) : null),
+    ...body);
+}
+
+function total(counts) { return Object.values(counts || {}).reduce((s, n) => s + n, 0); }
+
+function renderFilters() {
+  const row = (kind, value, label, n) => el("div", {
+    class: `filter${filter.kind === kind && filter.value === value ? " on" : ""}`,
+    onclick: () => { filter = { kind, value }; renderFilters(); refresh(); },
+  }, el("span", { text: label }), el("span", { class: "n", text: String(n) }));
+
+  const all = Object.values(summary.by_channel).reduce((s, c) => s + total(c), 0);
+  const pending = Object.values(summary.by_channel).reduce((s, c) => s + (c.pending || 0), 0);
+  document.getElementById("filters").replaceChildren(
+    row(null, null, "전체", all),
+    row("status", "pending", "결재 필요", pending),
+    el("h4", { text: "채널" }),
+    ...Object.entries(summary.by_channel).map(([ch, c]) => row("channel", ch, CHANNEL[ch] || ch, total(c))),
+    el("h4", { text: "업무" }),
+    ...Object.entries(summary.by_task)
+      .filter(([t]) => t !== "(none)")          // 업무가 없는 안건은 필터로 고를 수 없다
+      .map(([t, c]) => row("task", t, t, total(c))),
+  );
+}
+
+function renderList() {
+  const list = document.getElementById("list");
+  if (!approvals.length) {
+    list.replaceChildren(el("div", { class: "empty", text: "해당하는 안건이 없어요." }));
+    return;
+  }
+  list.replaceChildren(...approvals.map((a) => {
+    const isNew = !firstLoad && !seen.has(a.id);
+    return el("div",
+      { class: `item${a.id === selectedId ? " selected" : ""}`, onclick: () => select(a.id) },
+      el("div", { class: "row" },
+        el("span", { class: "target" }, `#${a.id} ${CHANNEL[a.channel] || a.channel} · ${a.requester}`,
+          isNew ? el("span", { class: "new", text: "NEW" }) : null),
+        badge(a)),
+      el("div", { class: "q", text: a.question }));
+  }));
+}
+
+function select(id) {
+  selectedId = id;
+  seen.add(id);
+  location.hash = String(id);
+  renderedKey = null;
+  renderList();
+  renderDetail();
+}
+
+function renderDetail() {
+  const box = document.getElementById("detail");
+  const a = approvals.find((x) => x.id === selectedId);
+  if (!a) {
+    box.replaceChildren(el("div", { class: "empty", text: "가운데에서 안건을 고르세요." }));
+    renderedKey = null;
+    return;
+  }
+  const key = `${a.id}:${a.status}:${a.events.length}`;
+  if (key === renderedKey) return;   // 바뀐 게 없으면 다시 그리지 않는다 (입력 중인 사유 보존)
+  renderedKey = key;
+
+  const parts = [
+    el("h2", {}, `#${a.id} `, badge(a), a.round > 1 ? ` ${a.round}번째 초안` : ""),
+    el("div", { class: "meta" },
+      `${CHANNEL[a.channel] || a.channel} (${a.audience}) · ${a.requester} · `,
+      a.task ? `업무 ${a.task.name} · ` : "",
+      el("a", { href: a.source_url, target: "_blank", rel: "noopener", text: a.target })),
+    step("질문", "", el("div", { class: "text", text: a.question }),
+      ...a.context.map((m) => el("div", { class: "msg" }, el("b", { text: m.author }), ` ${m.text}`))),
+    step("head agent 가 준 지식", "",
+      a.refusal ? el("div", { class: "notice", text: `답할 수 없음: ${a.refusal}` }) : null,
+      a.knowledge ? el("div", { class: "text", text: a.knowledge }) : null),
+    step("게시될 답", "", el("div", { class: "text", text: a.draft })),
+  ];
+  if (a.rejections.length) {
+    parts.push(step("거절 이력", "", ...a.rejections.map((r, i) =>
+      el("div", { class: "rej" },
+        el("div", { class: "reason", text: `${i + 1}번째 초안 거절 · ${r.reason}` }),
+        el("div", { class: "old text", text: r.draft })))));
+  }
+  parts.push(renderActions(a));
+  parts.push(step("기록", "", el("ol", { class: "timeline" }, ...a.events.map((e) =>
+    el("li", { text: `${fmtTime(e.at)} · ${e.who} → ${e.what}${e.detail ? ` (${e.detail})` : ""}` })))));
+  box.replaceChildren(...parts);
+}
+
+async function post(path, body) {
+  const res = await fetch(path, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(`${res.status} ${data.error || ""} ${data.detail || ""}`.trim());
+  }
+}
+
+function renderActions(a) {
+  if (a.status === "posted") {
+    return step("결재 완료", "", el("a", { href: a.posted_url, target: "_blank", rel: "noopener",
+      text: `게시됨: ${a.posted_url}` }));
+  }
+  if (a.status === "rejected") {
+    return step("다시 쓰는 중", "", el("div", { class: "notice",
+      text: "대응 에이전트가 거절 사유를 head agent 에 보내 새 초안을 쓰고 있어요." }));
+  }
+  if (a.status === "closed") {
+    return step("닫힘", "", el("div", { class: "notice", text: "3번 거절되어 응답하지 않기로 했어요." }));
+  }
+
+  const error = el("div", { class: "error" });
+  const approveBtn = el("button", { class: "approve",
+    text: a.status === "approved" ? "게시 다시 시도" : "승인하고 게시" });
+  const buttons = [approveBtn];
+  let reason = null;
+  if (a.status === "pending") {
+    reason = el("textarea", { placeholder: "거절 사유 (거절할 때 필수). 대응 에이전트가 이 사유로 다시 써요." });
+    buttons.push(el("button", { class: "reject", text: "거절" }));
+  }
+
+  async function act(path, body) {
+    buttons.forEach((b) => { b.disabled = true; });
+    error.textContent = "";
+    try {
+      await post(`/approvals/${a.id}/${path}`, body);
+      renderedKey = null;
+      await refresh();
+    } catch (e) {
+      error.textContent = `실패: ${e.message}`;
+      buttons.forEach((b) => { b.disabled = false; });
+    }
+  }
+  approveBtn.addEventListener("click", () => act("approve"));
+  buttons[1]?.addEventListener("click", () => {
+    if (!reason.value.trim()) { error.textContent = "거절 사유를 적어 주세요."; reason.focus(); return; }
+    act("reject", { reason: reason.value.trim() });
+  });
+
+  return step(a.status === "approved" ? "게시 실패 — 다시 시도할 수 있어요" : "결재", "",
+    el("div", { class: "actions" }, reason, el("div", { class: "buttons" }, ...buttons), error));
+}
+
+async function refresh() {
+  const params = new URLSearchParams();
+  if (filter.kind && filter.value) params.set(filter.kind, filter.value);
+  try {
+    const [list, sum] = await Promise.all([
+      fetch(`/approvals?${params}`).then((r) => r.json()),
+      fetch("/approvals/summary").then((r) => r.json()),
+    ]);
+    approvals = list;
+    summary = sum;
+  } catch {
+    return;   // 서버가 잠깐 없으면 다음 폴링에서 다시
+  }
+  if (firstLoad) { approvals.forEach((a) => seen.add(a.id)); firstLoad = false; }
+  renderFilters();
+  renderList();
+  renderDetail();
+}
+
+refresh();
+setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>

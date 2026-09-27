@@ -19,7 +19,7 @@
 
 | | 실행 명령 | 포트 | 역할 | 비고 |
 |---|---|---|---|---|
-| A. 결재 서버 (`services/approvals`) | `uvicorn approvals.app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름. Step 3 |
+| A. 결재 서버 (`services/approvals`) | `uvicorn --factory approvals.app:create_app --port 8790` | 8790 | 안건 저장·목록·승인/거절, 승인 시 게시. 브라우저 `:8790/` 참조 웹 | **웹 백엔드 = 이것.** 다영님 프런트가 부름. Step 3 |
 | B. 지식 서버 (`services/head_stub`) | `uvicorn head_stub.app:app --port 8791` | 8791 | `POST /ask` 하나. `data/knowledge/` 에서 키워드로 찾아 답 | 민섭님 head agent 오면 안 켬 (`HEAD_URL` 만 변경) |
 | C. desk (`workflow/rfa_workflow`) | `python -m rfa_workflow desk` | 없음 | 5초마다 GitHub/Slack 확인 → LangGraph 그래프 실행 → B 에 지식 요청, A 에 안건 제출. A 의 거절 안건을 폴링해 재작성 | 요청을 받지 않고 보내기만 함. Step 5·6 |
 

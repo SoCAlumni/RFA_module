@@ -25,7 +25,7 @@ paths:
     get:
       tags: [frontend]
       operationId: listApprovals
-      summary: 안건 목록 (최신순). status·channel·task 로 거른다
+      summary: 안건 목록 (updated_at 최신순). status·channel·task 로 거른다
       parameters:
         - name: status
           in: query
