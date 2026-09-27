@@ -4,9 +4,8 @@
 
 ## 전제
 
-- Python 3.12+, `uv`.
-- GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write.
-- Slack 앱 (Step 7 부터): `person/TODO.md` 의 절차대로 만들고 유저 토큰(`xoxp-`)과 앱 토큰(`xapp-`)을 받는다. 봇 계정이 아니라 내 계정으로 동작한다.
+- Python 3.12+, `uv`. (처음이면 [BOOTSTRAP.md](../BOOTSTRAP.md) 의 5분 실행부터)
+- 토큰 없이(mock) 전체 흐름이 돈다. 실연동에 필요한 토큰 발급은 [docs/tokens.md](tokens.md) — GitHub PAT, Anthropic 키, Slack(User Token, 매니페스트 포함) 클릭 단위 안내.
 
 ## 설치와 테스트
 
@@ -40,6 +39,8 @@ uv run --env-file .env python -m rfa_workflow redo 1                   # → 안
 ## desk (계속 돌리기)
 
 ```bash
+./scripts/run_demo.sh         # 한 터미널: 예전 프로세스 정리 + 서비스 + desk 를 한 번에 (데모용)
+# 또는 나눠서:
 ./scripts/run_services.sh     # 터미널 1: 결재 서버 + head_stub
 ./scripts/run_desk.sh         # 터미널 2: 5초마다 RFA_CHANNELS 의 멘션을 받아 결재함에, 거절된 안건은 다시 씀
 ./scripts/run_desk.sh --once  # 한 틱만

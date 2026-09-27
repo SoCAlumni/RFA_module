@@ -1,0 +1,22 @@
+# Slack 앱 매니페스트 — api.slack.com/apps → Create New App → "From an app manifest" 에 붙여넣는다.
+# 발급 절차 전체는 docs/tokens.md 의 Slack 절 참고.
+# 이 앱은 봇이 아니라 "나(User Token)"로서 동작한다: 나에게 온 DM·@나 멘션을 받고 내 이름으로 답한다.
+display_information:
+  name: rfa-desk
+  description: "RFA 대응 에이전트 — 나에게 온 DM과 멘션을 받아 결재 후 내 이름으로 답한다"
+oauth_config:
+  scopes:
+    user:                      # 전부 User Token Scopes (Bot 쪽은 비워 둔다)
+      - channels:history       # 내가 속한 공개 채널 읽기 (멘션 감지 + 스레드 맥락)
+      - groups:history         # 내가 속한 비공개 채널 읽기
+      - im:history             # 나에게 온 DM 읽기
+      - mpim:history           # 그룹 DM 읽기
+      - chat:write             # 내 이름으로 답장
+      - users:read             # 보낸 사람 이름 조회
+settings:
+  socket_mode_enabled: true    # 공개 URL(ngrok) 없이 이벤트 수신
+  event_subscriptions:
+    user_events:               # "on behalf of users" 이벤트 (bot_events 아님)
+      - message.im
+      - message.channels
+      - message.groups

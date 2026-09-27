@@ -7,8 +7,8 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 7** (`step-07-slack`) — PR 리뷰 대기 |
-| 마지막 머지 | Step 6 (PR #20). 실제 GitHub 게시 E2E 완료 (이슈 #2, 거절 → 재작성 → 승인 → 내 이름으로 댓글) |
+| 진행 중 단계 | **Step 8** (`step-08-bootstrap`) — PR #22 리뷰 대기 |
+| 마지막 머지 | Step 7 (PR #21). GitHub·Slack 실 E2E 완료 |
 | 다음 할 일 | Step 7 PR 리뷰·머지 → 데모 준비. **Slack E2E 완료** (9/27 22:44, 다른 계정 멘션 → 6초 뒤 안건 → 승인 → 내 이름으로 스레드 답글) |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
 | Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
@@ -38,7 +38,8 @@
 | 5 | workflow — LangGraph 그래프 (Slack 없이 가능해 4 보다 먼저) | `step-05-workflow` | 완료 (PR #18) |
 | 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 완료 (PR #19) |
 | 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 완료 (PR #20) |
-| 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 리뷰 대기 |
+| 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 완료 (PR #21) |
+| 8 | AI 온보딩 문서 (BOOTSTRAP, tokens, Slack 매니페스트) | `step-08-bootstrap` | 리뷰 대기 (PR #22) |
 
 ---
 
