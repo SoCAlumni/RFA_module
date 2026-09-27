@@ -162,3 +162,12 @@ pending ──approve──► approved ──게시──► posted
 1. **UI 시안의 "어디까지 공개할까요?" 3단계 선택**은 이 API 에 없습니다. 지금은 승인/거절뿐입니다. 필요하면 `reject` 사유에 범위를 적는 식으로 시작하고, 정식 필드는 따로 논의.
 2. `task` 는 head agent 가 돌려주는 값에 의존합니다. head 가 `null` 을 주면 프런트에서는 `(none)` 으로 묶입니다.
 3. 결재 API 에 인증이 없습니다. 승인 호출을 사람만 하게 막는 것은 샌드박스 정책(다영님) 쪽입니다.
+
+---
+
+## 구현·사용 예시 (살아있는 것들)
+
+- 결재 API를 실제로 쓰는 화면: `services/approvals/static/index.html` (서버 켜면 http://127.0.0.1:8790/)
+- 요청 본문 예시 dict: `services/tests/test_approvals.py` 의 `GITHUB` / `SLACK`
+- `/ask` 참고 구현(대역): `services/head_stub/app.py` · 호출하는 쪽: `workflow/rfa_workflow/graph.py` 의 `ask_head`
+- 계약↔코드 자동 대조 테스트: `services/tests/test_contracts.py`, `services/tests/test_approvals.py::test_app_routes_match_contract`

@@ -3,6 +3,7 @@
 NVIDIA Agentic AI 해커톤 팀 프로젝트(개인 비서 멀티에이전트)의 한 모듈.
 GitHub·Slack 에서 멘션을 받아 → head agent 에게 검열된 지식을 받고 → 답을 써서 사람 결재에 올리고 → 승인되면 그 채널에 답글을 단다. 거절되면 사유를 들고 다시 쓴다.
 
+- **처음이면 (사람이든 AI든): [BOOTSTRAP.md](BOOTSTRAP.md)** — 역할별 읽기 경로, 5분 실행, API 지도
 - 계획과 결정: [docs/plan.md](docs/plan.md)
 - 구조: [docs/architecture.md](docs/architecture.md)
 - **팀 경계 API**: [docs/contracts.md](docs/contracts.md) · Redoc https://socalumni.github.io/RFA_module/ (`contracts/*.openapi.yaml` 에서 자동 생성)
