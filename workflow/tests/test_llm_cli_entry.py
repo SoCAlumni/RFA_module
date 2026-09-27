@@ -167,3 +167,38 @@ def test_mcp_entry_exposes_run_tool(env):
 
     assert not result.is_error
     assert result.structured_content["outcome"] == "reviewed"
+
+
+def test_env_file_sets_missing_vars_only(tmp_path, monkeypatch):
+    from rfa_workflow.cli import load_env_file
+
+    f = tmp_path / "w.env"
+    f.write_text("# 주석\n\nRFA_T_A=1\nRFA_T_B = two=2\nbroken line\n", encoding="utf-8")
+    monkeypatch.delenv("RFA_T_A", raising=False)
+    monkeypatch.setenv("RFA_T_B", "keep")
+    load_env_file(f)
+    import os
+
+    assert os.environ["RFA_T_A"] == "1"
+    assert os.environ["RFA_T_B"] == "keep"  # 이미 있으면 덮지 않는다
+
+
+def test_cli_rerun_returned_doc_from_review_with_hint(env, capsys):
+    """returned 문서를 --from-review 로 다시 부르면 같은 문서가 hint 로 이어진다."""
+    from wf_support import FakeLLM
+
+    none = {"task_id": "none", "reason": "모름"}
+    main(
+        ["run", "--mention-json", mention("@zetwhite 그거 어때요?").model_dump_json()],
+        deps=env.make_deps(FakeLLM({"pick_task": [none]})),
+    )
+    first = json.loads(capsys.readouterr().out)
+    assert first["outcome"] == "returned"
+
+    code = main(
+        ["run", "--from-review", str(first["review_id"]), "--hint", "ORBIT 벤치마크 진행"],
+        deps=env.make_deps(RuleLLM()),
+    )
+    again = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert (again["review_id"], again["outcome"]) == (first["review_id"], "reviewed")

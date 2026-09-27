@@ -1,0 +1,51 @@
+# 샌드박스(rfa) → 호스트 서비스 정책. __HOST__ 는 setup_sandbox.sh 가 RFA_SANDBOX_HOST 로 바꿔 적용한다.
+# 워크플로(python)가 쓰는 경로만 연다. 결재(approve/reject)와 결재 웹은 열지 않는다 → 사람만 결재.
+# github MCP(8792)는 두 경로로 쓰인다:
+#   - public-desk(OpenClaw, node): nemoclaw 관리형 MCP (mcp add, bearer 는 OpenShell 이 보관) → 이 파일과 별개
+#   - 워크플로 desk-once(python): 아래 rfa_github_mcp. bearer 는 샌드박스 안 설정 파일(600)에 있다.
+#     이 bearer 로 할 수 있는 건 public-desk 가 이미 쓰는 읽기 툴(list_mentions, get_thread)뿐이다.
+preset:
+  name: rfa-host
+  description: "RFA host services: review(8790), knowledge stub(8791), github MCP(8792, HTTPS)"
+network_policies:
+  rfa_review:
+    name: rfa_review
+    endpoints:
+      - host: __HOST__
+        port: 8790
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/reviews" }
+          - allow: { method: GET, path: "/reviews" }
+          - allow: { method: GET, path: "/reviews/*" }
+          - allow: { method: POST, path: "/reviews/*/knowledge" }
+          - allow: { method: POST, path: "/reviews/*/draft" }
+          - allow: { method: POST, path: "/reviews/*/verdict" }
+          - allow: { method: POST, path: "/reviews/*/needs-human" }
+          - allow: { method: GET, path: "/policy/*" }
+    binaries:
+      - { path: /usr/bin/python3.13 }
+  rfa_knowledge:
+    name: rfa_knowledge
+    endpoints:
+      - host: __HOST__
+        port: 8791
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: GET, path: "/tasks" }
+          - allow: { method: POST, path: "/tasks/*/ask" }
+    binaries:
+      - { path: /usr/bin/python3.13 }
+  rfa_github_mcp:
+    name: rfa_github_mcp
+    endpoints:
+      - host: __HOST__
+        port: 8792
+        protocol: rest
+        enforcement: enforce
+        rules:
+          - allow: { method: POST, path: "/github/mcp" }
+    binaries:
+      - { path: /usr/bin/python3.13 }

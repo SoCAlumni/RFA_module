@@ -125,6 +125,7 @@ def run(mention: Mention, deps: Deps, hint: str | None = None) -> RunResult:
         summary = final["failure"]
     return RunResult(
         review_id=final.get("review_id"),
+        target=final["mention"].target,
         outcome=outcome,
         summary=summary,
         recoveries=list(deps.budget.log),

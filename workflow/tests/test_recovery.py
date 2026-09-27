@@ -120,6 +120,7 @@ def test_no_task_returns_to_supervisor_then_hint_resumes_same_doc(env):
     )
 
     assert first.outcome == "returned"
+    assert first.target == "zetwhite/RFA_test#1"  # supervisor 가 get_thread 로 읽을 대상
     assert "관련 task 없음: 무슨 모델인지 모름" in first.summary
     assert doc(env, first.review_id)["status"] == "opened"  # 사람에게 넘기지 않았다
 

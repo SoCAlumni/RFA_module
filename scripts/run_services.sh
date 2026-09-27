@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # 호스트 서비스 3개를 띄운다. Ctrl+C 로 전부 종료.
-#   review      127.0.0.1:8790  결재 문서 API + 결재 웹 (브라우저: http://127.0.0.1:8790/)
-#   knowledge   127.0.0.1:8791  실무대장 stub
-#   github-mcp  127.0.0.1:8792  GitHub 채널 MCP (/github/mcp)
+#   review      :8790  결재 문서 API + 결재 웹 (브라우저: http://127.0.0.1:8790/)
+#   knowledge   :8791  실무대장 stub
+#   github-mcp  :8792  GitHub 채널 MCP (/github/mcp)
+# 모두 127.0.0.1 에 뜨고, .env 에 RFA_SANDBOX_HOST(예: 172.18.0.1)가 있으면 샌드박스용으로 그 주소에도 뜬다
+# (github-mcp 는 그 주소에서 HTTPS: certs/ 필요, scripts/make_certs.sh).
 # 설정은 .env (없으면 cp .env.example .env). 로그는 $LOG_DIR (기본 data/state/logs).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -25,13 +27,13 @@ cleanup() { kill "${pids[@]}" 2>/dev/null || true; wait 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
 start() {
-  local name=$1; shift
-  uv run --env-file "$ENV_FILE" uvicorn "$@" --host 127.0.0.1 >"$LOG_DIR/$name.log" 2>&1 &
+  local name=$1 port=$2
+  uv run --env-file "$ENV_FILE" python -m rfa_hostserve "$name" --port "$port" >"$LOG_DIR/$name.log" 2>&1 &
   pids+=($!)
 }
-start review --factory review.app:create_app --port 8790
-start knowledge knowledge_stub.app:app --port 8791
-start github-mcp --factory mcp_channels.server:create_app --port 8792
+start review 8790
+start knowledge 8791
+start github-mcp 8792
 
 # 응답이 오면 뜬 것 (MCP 는 bearer 없이 401 이 정상)
 ready() { [ "$(curl -s -o /dev/null -w '%{http_code}' "$1")" = "$2" ]; }

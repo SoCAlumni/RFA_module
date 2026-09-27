@@ -34,6 +34,7 @@ class State(TypedDict, total=False):
 
 class RunResult(BaseModel):
     review_id: int | None
+    target: str | None = Field(None, description="owner/repo#N (supervisor 가 스레드를 읽을 때)")
     outcome: Outcome
     summary: str
     recoveries: list[str] = Field(
