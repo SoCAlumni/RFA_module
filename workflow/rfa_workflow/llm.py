@@ -24,22 +24,27 @@ ANTHROPIC_API_URL = "https://api.anthropic.com"
 MAX_TOKENS = 16000
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
-# OpenAI 호환 provider 별 (기본 주소, 키 환경변수, 기본 모델). RFA_MODEL 로 모델만 덮어쓴다.
-OPENAI_COMPAT_PROVIDERS: dict[str, tuple[str, str, str]] = {
+# OpenAI 호환 provider 별 (기본 주소, 키 환경변수, 기본 모델, 요청에 얹는 추가 필드).
+# RFA_MODEL 로 모델만 덮어쓴다. nemotron 은 reasoning 을 꺼야 응답이 온다 —
+# 켜 두면 생각 토큰을 수천 자 생성하느라 실제 writer 프롬프트에서 타임아웃이 났다.
+OPENAI_COMPAT_PROVIDERS: dict[str, tuple[str, str, str, dict[str, Any]]] = {
     "openrouter": (
         "https://openrouter.ai/api/v1",
         "OPENROUTER_API_KEY",
         "nvidia/nemotron-3.5-lightning:free",
+        {"reasoning": {"enabled": False}},
     ),
     "nvidia": (
         "https://integrate.api.nvidia.com/v1",
         "NVIDIA_API_KEY",
         "nvidia/nemotron-3.5-lightning-30b-a3b",
+        {"chat_template_kwargs": {"enable_thinking": False}},
     ),
     "gemini": (
         "https://generativelanguage.googleapis.com/v1beta/openai",
         "GEMINI_API_KEY",
         "gemini-2.5-flash",
+        {},
     ),
 }
 
@@ -95,13 +100,16 @@ class AnthropicLLM:
 class OpenAICompatLLM:
     """OpenAI chat/completions 호환 API. OpenRouter·NVIDIA·Gemini 가 모두 이 형태를 받는다."""
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+    def __init__(
+        self, base_url: str, api_key: str, model: str, extra: Mapping[str, Any] | None = None
+    ) -> None:
         self._model = model
         self._base_url = base_url
+        self._extra = dict(extra or {})
         self._client = httpx.Client(
             base_url=base_url,
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=120.0,
+            timeout=300.0,
             transport=httpx.HTTPTransport(retries=2),  # 연결 실패만 재시도
         )
 
@@ -116,6 +124,7 @@ class OpenAICompatLLM:
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
                     ],
+                    **self._extra,
                 },
             )
         except httpx.HTTPError as exc:
@@ -169,11 +178,12 @@ def make_llm(env: Mapping[str, str]) -> LLM:
         )
         return AnthropicLLM(client, env.get("RFA_MODEL") or DEFAULT_MODEL)
     if mode in OPENAI_COMPAT_PROVIDERS:
-        base_url, key_var, default_model = OPENAI_COMPAT_PROVIDERS[mode]
+        base_url, key_var, default_model, extra = OPENAI_COMPAT_PROVIDERS[mode]
         return OpenAICompatLLM(
             base_url=base_url,
             api_key=env.get(key_var) or "",
             model=env.get("RFA_MODEL") or default_model,
+            extra=extra,
         )
     raise RuntimeError(
         f"unknown RFA_LLM_MODE: {mode!r} (mock | openrouter | nvidia | gemini | anthropic)"

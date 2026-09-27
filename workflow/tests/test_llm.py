@@ -201,14 +201,32 @@ def test_make_llm():
         make_llm({"RFA_LLM_MODE": "gpt"})
 
 
+def test_openai_compat_extra_fields_in_request():
+    """nemotron 은 reasoning 을 꺼야 한다 — provider 별 추가 필드가 요청 본문에 실리는지."""
+    seen: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=completion("답"))
+
+    llm = OpenAICompatLLM(
+        "https://x", "K", "m", extra={"chat_template_kwargs": {"enable_thinking": False}}
+    )
+    llm._client = httpx.Client(base_url="https://x", transport=httpx.MockTransport(respond))
+    llm.text(name="writer", system="S", user="U", context={})
+    body = json.loads(seen[0].content)
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
+
+
 @pytest.mark.parametrize("mode", ["openrouter", "nvidia", "gemini"])
 def test_make_llm_openai_compat_providers(mode):
-    base_url, key_var, default_model = OPENAI_COMPAT_PROVIDERS[mode]
+    base_url, key_var, default_model, extra = OPENAI_COMPAT_PROVIDERS[mode]
     llm = make_llm({"RFA_LLM_MODE": mode, key_var: "k"})
     assert isinstance(llm, OpenAICompatLLM)
     assert llm._model == default_model
     assert llm._base_url == base_url
     assert llm._client.headers["Authorization"] == "Bearer k"
+    assert llm._extra == extra
     overridden = make_llm({"RFA_LLM_MODE": mode, key_var: "k", "RFA_MODEL": "m"})
     assert overridden._model == "m"
 
