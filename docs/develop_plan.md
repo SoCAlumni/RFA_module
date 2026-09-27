@@ -178,7 +178,7 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
   - `submit`: `approval_id` 가 있으면 revise, 없으면 create (같은 멘션이면 서버가 기존 안건을 돌려줌).
   - `redo` 는 안건이 rejected 가 아니면 head·LLM 을 부르기 전에 멈춘다 (헛비용 방지). 그 사이 누가 먼저 다시 썼다면 서버가 409 로 막는다.
   - 계획에 있던 `intake`(같은 멘션 건너뛰기)는 뺐다. 결재 API 에 source_url 조회가 없고, 중복 멘션은 채널 쪽(GitHub 추적 파일, Slack event_id)에서 거른다. 같은 멘션이 와도 안건은 하나로 유지된다 (테스트로 확인).
-- `llm.py`: v1(`819053f`) `AnthropicLLM` 을 `text` 하나로 줄임. `client.beta.messages.create(..., betas=["server-side-fallback-2026-07-01"], fallbacks="default")` — 모델이 안전 분류기로 거절하면 서버가 권장 모델로 다시 돌림. refusal·max_tokens·빈 응답·API 오류는 `LLMError`. 응답의 thinking·fallback 블록은 버리고 text 만. `RuleLLM`(mock) 은 head 지식을 그대로 옮김 (거절 사유는 head 가 이미 반영). 실제 API 로 sonnet-4-6·opus-5 둘 다 호출해 fallback 파라미터가 받아들여지는 것 확인.
+- `llm.py`: v1(`819053f`) `AnthropicLLM` 을 `text` 하나로 줄임. `client.beta.messages.create(..., betas=["server-side-fallback-2026-07-01"], fallbacks="default")` — 모델이 안전 분류기로 거절하면 서버가 권장 모델로 다시 돌림. refusal·max_tokens·빈 응답·API 오류는 `LLMError`. 응답의 thinking·fallback 블록은 버리고 text 만. `RuleLLM`(mock) 은 head 지식을 그대로 옮김 (거절 사유는 head 가 이미 반영). 기본 모델은 `claude-sonnet-4-6` (9/27 사용자 결정, `RFA_MODEL` 로 바꿀 수 있음). 실제 API 로 sonnet-4-6·opus-5 둘 다 호출해 fallback 파라미터가 받아들여지는 것 확인.
 - `clients.py`: v1 재시도 루프(연결 오류·429·5xx 를 0.5/1/2초 backoff 로 3회) 유지, 복구 예산과 409 해석은 제거. `HeadClient.ask`, `ApprovalsClient.create/revise/get`.
 - `deps.py`: `HEAD_URL`, `APPROVALS_URL`, LLM 설정을 env 에서.
 - `cli.py`: `python -m rfa_workflow run --mention-json … | --mention-file …`, `python -m rfa_workflow redo <id>`. 결과 JSON 한 줄, failed 면 종료 코드 1.

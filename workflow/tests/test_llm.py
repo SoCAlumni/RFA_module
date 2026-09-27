@@ -38,7 +38,7 @@ class FakeMessages:
 def llm_with(result) -> tuple[AnthropicLLM, FakeMessages]:
     messages = FakeMessages(result)
     client = SimpleNamespace(beta=SimpleNamespace(messages=messages))
-    return AnthropicLLM(client, "claude-opus-5"), messages
+    return AnthropicLLM(client, DEFAULT_MODEL), messages
 
 
 def reply(stop_reason: str, *blocks) -> SimpleNamespace:
@@ -57,7 +57,7 @@ def test_anthropic_request_shape_and_text_only():
     )
     assert call(llm) == "안녕하세요. 답입니다."
     assert messages.kwargs == {
-        "model": "claude-opus-5",
+        "model": "claude-sonnet-4-6",
         "max_tokens": 16000,
         "system": "SYS",
         "messages": [{"role": "user", "content": "USER"}],

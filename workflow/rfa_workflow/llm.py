@@ -16,7 +16,7 @@ from typing import Any, Protocol
 
 import anthropic
 
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 ANTHROPIC_API_URL = "https://api.anthropic.com"
 MAX_TOKENS = 16000
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
