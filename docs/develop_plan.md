@@ -9,7 +9,7 @@
 |---|---|
 | 진행 중 단계 | **Step 7** (`step-07-slack`) — PR 리뷰 대기 |
 | 마지막 머지 | Step 6 (PR #20). 실제 GitHub 게시 E2E 완료 (이슈 #2, 거절 → 재작성 → 승인 → 내 이름으로 댓글) |
-| 다음 할 일 | Step 7 PR 리뷰·머지 → **다른 Slack 계정**으로 Slack E2E (`person/TODO.md` 1-7) → 데모 준비 |
+| 다음 할 일 | Step 7 PR 리뷰·머지 → 데모 준비. **Slack E2E 완료** (9/27 22:44, 다른 계정 멘션 → 6초 뒤 안건 → 승인 → 내 이름으로 스레드 답글) |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
 | Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
@@ -221,7 +221,8 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 - 구현 메모: 내 user ID(`auth.test`)는 `start()` 에서 얻는다 → 결재 서버(post 만)는 시작할 때 Slack 을 부르지 않는다. 표시 이름은 `users.info`(실패하면 ID). 스레드 답글에서 온 멘션은 target 이 **스레드 첫 메시지** 자리. 맥락은 그 스레드(`conversations.replies`)만 — 스레드 없는 채널 멘션·DM 은 맥락 없음. 네트워크 오류(`OSError`)도 `SlackError`(⊂ `ChannelError`) 로 감쌈 → 게시 실패가 502 + 재시도 흐름을 탄다. 채널 약속(`Channel`)에 `start()` 추가 (GitHub 는 할 일 없음), desk CLI 가 루프 전에 모든 채널의 `start()` 를 부른다.
 - 테스트: `test_slack.py` 18 (start·잘못된 토큰·env, 채널 멘션 → Mention(내 태그 제거, 주소, 시각, 독자), DM 은 멘션 없이도, 무시할 것 5종(멘션 없음·**내가 보냄**·수정·봇·메시지 아님)도 ack, 중복 event_id, 이벤트 아닌 요청, 스레드 맥락, 맥락 실패 시 멘션 유지, 이름 조회 실패, start 없이 post, post 실패 2종), registry 8 (slack 켜기·env 누락, 'slack 은 아직 없음' 테스트는 대체).
 - 실제 Slack 확인 (다른 계정 없이 할 수 있는 것): `start()` 연결, **셀프 멘션과 비서 스레드 답글이 poll 에 안 잡힘**(자기 답글 루프 방지), `post()` 로 스레드에 내 이름으로 답글, desk 가 `github,slack` 두 채널로 시작.
-- 남은 E2E: 다른 계정이 `#rfa-test` 에서 나를 멘션하거나 나에게 DM → 결재 웹 승인 → 내 이름으로 스레드 답글.
+- **Slack E2E 완료** (실제 Claude, 실제 게시): 다른 계정(김아무개)이 `#rfa-test` 에서 `@roonm813` 멘션 → desk 가 6초 뒤 안건 #1 → 승인 → 그 스레드에 **roonm813 이름으로** 답글 → 자기 답글에는 반응 안 함.
+- 알게 된 것: 질문을 `ORBIT벤치마크` 처럼 **붙여 쓰면** head_stub 이 업무를 못 찾는다 (영문·한글이 한 단어로 묶여 문서의 `ORBIT 벤치마크` 와 안 맞음) → refusal → Claude 가 정중히 답 못 한다고 씀. 흐름은 정상, stub 의 단어 맞추기 한계. 민섭님 head agent 로 바뀌면 사라지는 문제라 고치지 않음 (데모 때는 띄어 쓰기).
 
 ## 검증 (전체)
 
