@@ -1,12 +1,12 @@
 # 셋업과 재현 (v2)
 
-> 단계가 진행되면서 채워진다. 지금은 Step 5·4 까지 (결재 서버 + head_stub + 대응 에이전트 그래프 + GitHub 채널).
+> 단계가 진행되면서 채워진다. 지금은 Step 6 까지 (결재 서버 + head_stub + 대응 에이전트 + GitHub 채널 + desk). Slack 은 Step 7.
 
 ## 전제
 
 - Python 3.12+, `uv`.
 - GitHub fine-grained 토큰: 감시할 테스트 레포 한정, Issues read/write.
-- Slack 앱 (Step 4 부터): `person/TODO.md` 의 절차대로 만들고 봇 토큰(`xoxb-`)과 앱 토큰(`xapp-`)을 받는다.
+- Slack 앱 (Step 7 부터): `person/TODO.md` 의 절차대로 만들고 유저 토큰(`xoxp-`)과 앱 토큰(`xapp-`)을 받는다. 봇 계정이 아니라 내 계정으로 동작한다.
 
 ## 설치와 테스트
 
@@ -25,7 +25,7 @@ cp .env.example .env && $EDITOR .env
 
 v1 에서 쓰던 `.env` 라면 `RFA_PUBLISHER=github` 를 `RFA_PUBLISHER=mock` 으로 바꾼다 (v2 는 `mock` 만 안다. 실제 게시 `live` 는 Step 4).
 
-결재 웹: http://127.0.0.1:8790/ — 안건은 desk 가 만든다 (Step 6). 그 전에는 대응 에이전트를 손으로 돌린다:
+결재 웹: http://127.0.0.1:8790/ — 안건은 desk 가 만든다 (아래 "desk"). 대응 에이전트를 손으로 한 번만 돌려 볼 수도 있다:
 
 ```bash
 M='{"channel":"slack","target":"C0123ABC/1727000000.000100","author":"product-team",
@@ -37,7 +37,18 @@ uv run --env-file .env python -m rfa_workflow redo 1                   # → 안
 ```
 `RFA_LLM_MODE=mock` 이면 키 없이, `anthropic` 이면 Claude 가 답을 쓴다.
 
-실제 GitHub 에 게시하려면 결재 서버를 `RFA_PUBLISHER=live RFA_CHANNELS=github` 로 띄운다 (`GITHUB_*` 필요). 승인하면 안건의 이슈에 댓글이 달린다. 멘션을 자동으로 받아 오는 것은 Step 6 (desk).
+## desk (계속 돌리기)
+
+```bash
+./scripts/run_services.sh     # 터미널 1: 결재 서버 + head_stub
+./scripts/run_desk.sh         # 터미널 2: 5초마다 RFA_CHANNELS 의 멘션을 받아 결재함에, 거절된 안건은 다시 씀
+./scripts/run_desk.sh --once  # 한 틱만
+```
+
+- 감시 레포 이슈에 `@<RFA_GITHUB_LOGIN>` 멘션을 달면 다음 틱에 결재함(http://127.0.0.1:8790/)에 안건이 뜬다.
+- 거절하면 다음 틱에 사유를 반영한 새 초안이 올라온다. 실패한 작업은 30초·60초 뒤 다시, 3번째 실패에서 포기한다.
+- 실제 GitHub 에 게시하려면 `.env` 를 `RFA_PUBLISHER=live` 로 바꾸고 run_services.sh 를 다시 띄운다. 승인하면 그 이슈에 **내 계정 이름으로** 댓글이 달린다 (숨김 표시 `<!-- rfa-bot -->` 가 붙어 desk 가 자기 답글에 다시 반응하지 않는다).
+- 이미 본 멘션 기록은 `data/state/mentions_seen.json`. 지우면 최근 24시간 멘션을 다시 가져온다.
 
 head_stub 확인:
 ```bash

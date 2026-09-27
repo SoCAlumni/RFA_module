@@ -15,6 +15,7 @@ from typing import Any, Protocol
 import httpx
 from rfa_common.contracts import (
     Approval,
+    ApprovalStatus,
     AskRequest,
     AskResponse,
     CreateApprovalRequest,
@@ -83,3 +84,7 @@ class ApprovalsClient(_Service):
 
     def get(self, approval_id: int) -> Approval:
         return Approval.model_validate(self._call("get", f"/approvals/{approval_id}"))
+
+    def list(self, status: ApprovalStatus) -> list[Approval]:
+        data = self._call("get", "/approvals", params={"status": status.value})
+        return [Approval.model_validate(a) for a in data]

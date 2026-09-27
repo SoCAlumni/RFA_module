@@ -7,10 +7,11 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 4** (`step-04-channels`) — PR 리뷰 대기 |
-| 마지막 머지 | Step 5 (PR #18) |
-| 다음 할 일 | Step 4 PR 리뷰·머지 → Step 6 (desk 상주 루프 + GitHub E2E). `.env` 에 `RFA_CHANNELS=github` 추가 필요 |
+| 진행 중 단계 | **Step 6** (`step-06-desk`) — PR 리뷰 대기 |
+| 마지막 머지 | Step 4 (PR #19) |
+| 다음 할 일 | Step 6 PR 리뷰·머지 → 실제 GitHub 게시 E2E (사람이 승인 → 이슈에 댓글) → Step 7 (Slack, 토큰 필요) |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
+| Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
 
 ## 규칙
@@ -35,8 +36,8 @@
 | 2 | 리셋 (v1 코드 정리) + 문서 + head_stub | `step-02-reset` | 완료 (PR #16) |
 | 3 | approvals 서비스 + 참조 결재 웹 | `step-03-approvals` | 완료 (PR #17) |
 | 5 | workflow — LangGraph 그래프 (Slack 없이 가능해 4 보다 먼저) | `step-05-workflow` | 완료 (PR #18) |
-| 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 리뷰 대기 |
-| 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | |
+| 4 | channels — 공통 인터페이스 + GitHub + 실제 게시(live) | `step-04-channels` | 완료 (PR #19) |
+| 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 리뷰 대기 |
 | 7 | Slack 어댑터 (Socket Mode) + Slack E2E | `step-07-slack` | Slack 토큰 필요 |
 
 ---
@@ -198,21 +199,30 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 
 ## Step 6: desk 상주 루프 + 스크립트 + GitHub E2E  (`step-06-desk`)
 
-- `desk.py`: `Desk.tick()` — 채널 `poll()` → `graph.run(mention)`; 결재 서버의 rejected 안건 → `graph.redo(approval)`. `run_forever(interval=5)`. (`ApprovalsClient.list(status)` 는 이때 추가)
-- 실패한 redo 가 매 틱 LLM 을 다시 부르지 않게 안건별 재시도 간격/횟수 제한.
-- `cli.py desk`, `scripts/run_services.sh`(8790, 8791), `scripts/run_desk.sh`, `README.md` 실행법.
-- 테스트: 가짜 채널 + TestClient 로 tick 두 번(멘션 → pending, reject → round 2), 채널 오류 격리.
-- E2E: mock(키 없이) → 실연동(GitHub 토큰 + `RFA_LLM_MODE=anthropic`).
+- `desk.py`: `Desk(channels, deps, clock).tick()` — ① 켜진 채널마다 `poll()` → 새 멘션마다 `graph.run` ② 전에 실패한 멘션 중 때가 된 것 다시 ③ 결재 서버의 rejected 안건 → `graph.redo`. `run_forever(interval=5, ticks=None)`.
+  - **재시도 제한**: 실패하면 30초·60초 뒤 다시, 3번째 실패에서 포기(로그). 매 틱 LLM 을 헛되이 부르지 않는다. 포기한 rejected 안건은 desk 를 다시 켜면 다시 시도. 포기한 새 멘션은 잃는다 (채널 추적 파일이 이미 '봤음' — 데모 범위의 한계, 로그로 남김).
+  - **격리**: 한 채널의 poll 오류, 결재 서버 목록 조회 오류, 그래프의 예상 못 한 예외(버그)도 루프를 멈추지 않는다.
+  - desk 는 채널의 `poll` 만 부른다 (게시는 결재 서버).
+- `clients.py`: `ApprovalsClient.list(status)`.
+- `workflow/pyproject.toml` 에 `rfa-services` 의존 추가 (desk 가 `channels` 를 씀. 방향은 workflow → services 하나).
+- `cli.py desk [--interval 5] [--once]`: `RFA_CHANNELS` 로 채널을 켜고 루프. 진행 로그는 stderr (httpx 요청 로그는 숨김). Ctrl+C 로 종료. `scripts/run_desk.sh` (결재 서버가 안 떠 있으면 안내하고 멈춤). `README.md` 실행법.
+- 테스트: `test_desk.py` 9 (새 멘션 → 안건, 채널 고장 격리, 실패 멘션 재시도·포기, 예상 못 한 예외, 거절 → redo 한 번, 실패 redo 간격·포기 뒤 LLM 안 부름, 결재 서버 다운, run_forever 간격), CLI `desk --once`·채널 없음 경고 2.
+- E2E (mock 게시·mock LLM, 임시 데이터 폴더, **실제 GitHub 멘션 읽기**): desk 한 틱에 `SoCAlumni/RFA_test` 의 최근 멘션 5개 → 안건 5개 (맥락·task 붙음) → #5 거절 → 다음 틱에 redo round 2 (날짜·GPU 주소 문장 빠짐), 같은 멘션은 다시 안 올림 → 승인 → mock 게시.
+- 남은 것: **실제 GitHub 게시 E2E** (`RFA_PUBLISHER=live`, 사람이 승인 → 이슈에 댓글). 외부에 글이 올라가므로 사용자 확인 후 진행.
 
 ## Step 7: Slack 어댑터 + Slack E2E  (`step-07-slack`)
 
-- `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(bot_token, app_token)`: `start()` 가 `SocketModeClient` 리스너로 `app_mention`/`message`(im) 을 즉시 ack 하고 큐에 넣음 (봇 자신 무시, `<@BOT>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)`, URL `https://slack.com/archives/{C}/p{ts}`.
-- `registry.py` 에 `slack` 추가, `.env.example` 에 `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`.
-- 테스트: `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload).
-- E2E: `person/TODO.md` 의 Slack 앱으로 `@rfa-desk` 멘션 → 결재 웹 승인 → 스레드 답글.
+**방식: User Token (`xoxp-`).** 봇 계정이 아니라 **나로서** 동작한다 — 나에게 온 DM 과 `@나` 멘션을 받고, 답글도 내 이름으로 단다. GitHub 채널(내 PAT, `@내 아이디` 감지)과 같은 구조. 앱 설정은 `person/TODO.md` 1장.
+
+- **첫 작업 = 수신 스파이크.** user 이벤트가 Socket Mode 로 오는 것은 정황 근거(타 프로젝트 이슈)는 강하지만 공식 문서로 확정하지 못했다. 토큰을 받으면 임시 스크립트로 5분 안에 수신을 확인하고 시작한다. 안 오면 봇 방식(bot scopes + `app_mention`)으로 폴백 — 이벤트 이름과 토큰만 다르다.
+- `slack.py`: `slack_sdk` (`uv add --package rfa-services slack-sdk`). `SlackChannel(user_token, app_token)`: 시작 시 `auth.test` 로 내 user ID 획득. `start()` 가 `SocketModeClient`(xapp) 리스너로 user events — `message.im`(내 DM 전부) 과 `message.channels`/`message.groups`(본문에 `<@내ID>` 있는 것만) — 를 즉시 ack 하고 큐에 넣음 (**내가 보낸 메시지 무시** — 비서 답글도 내 이름이므로 이 규칙이 자기 답글 루프 방지를 겸함. `<@내ID>` 제거, `event_id` 중복 제거). `poll()` 은 큐를 비워 Mention 으로 (context 는 `conversations.replies` 최근 10개). `post()` 는 `chat_postMessage(thread_ts=...)` — **내 이름으로** 달림. URL `https://slack.com/archives/{C}/p{ts}`.
+- **`start()` 는 desk 만 부른다.** 결재 서버(LivePublisher)는 `post()` 만 쓴다 — Socket 연결이 두 개면 Slack 이 이벤트를 나눠 보내 desk 가 멘션을 놓친다.
+- `registry.py` 에 `slack` 추가, `.env.example` 에 `SLACK_USER_TOKEN`, `SLACK_APP_TOKEN`.
+- 테스트: `test_slack.py`(가짜 WebClient, 가짜 이벤트 payload — DM, 채널 멘션, 멘션 없는 채널 메시지 무시, 내 메시지 무시).
+- E2E: 다른 계정(팀원 또는 두 번째 계정)이 `#rfa-test` 에서 나를 멘션하거나 나에게 DM → 결재 웹 승인 → 내 이름으로 스레드 답글.
 
 ## 검증 (전체)
 
 1. 단계마다 `uv run ruff check . && uv run ruff format --check . && uv run pytest`.
 2. mock E2E: `scripts/run_services.sh` → `uv run python -m rfa_workflow run --mention-json '{...}'` → `curl :8790/approvals` 에 pending → 웹에서 거절(사유 "릴리즈 날짜") → desk 한 틱 → round 2 초안에 날짜 없음 → 승인 → mock 게시 기록.
-3. 실 E2E: `.env` 에 Slack 토큰 + `RFA_CHANNELS=github,slack RFA_PUBLISHER=live RFA_LLM_MODE=anthropic` → `scripts/run_desk.sh` → Slack `#rfa-test` 에서 `@rfa-desk ORBIT 벤치마크 어때?` → 결재 웹 → 승인 → 스레드 답글.
+3. 실 E2E: `.env` 에 Slack 토큰 + `RFA_CHANNELS=github,slack RFA_PUBLISHER=live RFA_LLM_MODE=anthropic` → `scripts/run_desk.sh` → 다른 계정이 `#rfa-test` 에서 `@<나> ORBIT 벤치마크 어때?` (또는 나에게 DM) → 결재 웹 → 승인 → 내 이름으로 스레드 답글.

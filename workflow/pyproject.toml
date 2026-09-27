@@ -5,6 +5,7 @@ description = "대응 에이전트: LangGraph 그래프 + desk 상주 루프"
 requires-python = ">=3.12"
 dependencies = [
     "rfa-common",
+    "rfa-services",  # desk 가 channels(멘션 받기)를 쓴다
     "langgraph>=1.0",
     "anthropic>=1.0",
     "httpx>=0.27",
@@ -12,6 +13,7 @@ dependencies = [
 
 [tool.uv.sources]
 rfa-common = { workspace = true }
+rfa-services = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]
