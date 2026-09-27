@@ -5,7 +5,8 @@
   재시도마다 복구 예산을 쓴다.
 - 409(상태 충돌): 최신 문서를 조회한다.
     · 이미 사람이 처리한 문서(approved/posted/rejected/needs_human) → AlreadyHandled
-    · 내 요청이 이미 반영됨(재시도 중 첫 요청이 실제로는 성공) → 성공으로 보고 계속 (예산 사용)
+    · 내 요청이 이미 반영됨(재시도 중 첫 요청이 실제로는 성공) → 성공으로 보고 계속
+      (이미 성공한 것이므로 예산을 쓰지 않고 기록만 한다)
     · 그 밖의 충돌 → ReviewConflict (복구 불가)
 - 문서 생성(POST /reviews)은 서버가 source_url 로 멱등 처리한다.
 
@@ -69,7 +70,7 @@ def resolve_conflict(
     if latest.status in HANDLED:
         raise AlreadyHandled(latest)
     if applied(latest):
-        budget.spend(f"409 {what}: 이미 반영됨")
+        budget.note(f"409 {what}: 이미 반영됨")  # 이미 성공한 요청 → 예산과 무관하게 성공
         return latest
     raise ReviewConflict(f"{what}: 문서가 {latest.status} 상태라 진행 불가")
 

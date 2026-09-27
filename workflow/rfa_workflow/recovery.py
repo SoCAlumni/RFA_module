@@ -16,11 +16,21 @@ class RecoveryExhausted(Exception):
 class RecoveryBudget:
     def __init__(self, limit: int = MAX_RECOVERIES) -> None:
         self.limit = limit
+        self.used = 0
         self.log: list[str] = []
 
     def spend(self, reason: str) -> None:
-        if len(self.log) >= self.limit:
+        """복구를 한 번 시도한다. 한도를 넘으면 RecoveryExhausted."""
+        if self.used >= self.limit:
             raise RecoveryExhausted(
                 f"자동 복구 한도({self.limit}회) 초과: {reason} / 이전: {'; '.join(self.log)}"
             )
+        self.used += 1
+        self.log.append(reason)
+
+    def note(self, reason: str) -> None:
+        """이미 성공이 확인된 일을 기록만 한다. 한도와 무관.
+
+        (성공한 요청을 한도 때문에 실패로 만들지 않는다)
+        """
         self.log.append(reason)

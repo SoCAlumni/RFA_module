@@ -1,5 +1,8 @@
 """실패 원인별 복구 경로: 자동 복구 성공 / 한도 초과 → needs_human."""
 
+from types import SimpleNamespace
+
+import pytest
 from rfa_workflow.graph_public import run
 from test_graph import LEAKY, PASS, PICK, REDACT
 from wf_support import FakeLLM, FlakyHttp, mention
@@ -160,3 +163,85 @@ def test_total_recovery_budget_is_shared_across_causes(env):
     assert result.outcome == "needs_human"
     assert "자동 복구 한도(3회) 초과" in result.summary
     assert len(result.recoveries) == 3
+
+
+# ---------- 중단 후 재실행: 중간 상태에서 재개 ----------
+
+
+class Killed(Exception):
+    """프로세스가 죽은 것을 흉내 (예상된 실패가 아니라 그래프 밖으로 튄다)."""
+
+
+def test_resume_after_crash_at_knowledge_ready(env):
+    with pytest.raises(Killed):
+        run(mention(), env.make_deps(happy_llm(writer=[Killed()])))
+    assert doc(env, 1)["status"] == "knowledge_ready"
+
+    llm = FakeLLM({"writer": [LEAKY], "editor": [PASS], "censor_public": [REDACT]})
+    result = run(mention(), env.make_deps(llm))
+
+    assert (result.outcome, result.review_id) == ("reviewed", 1)
+    assert result.resumed_from == "knowledge_ready"
+    assert llm.count("pick_task") == 0  # 저장된 지식을 그대로 썼다
+    assert "Nimbus2" in llm.calls[0][1]  # writer 입력에 저장된 지식
+    assert whats(doc(env, 1)).count("knowledge_ready") == 1
+
+
+def test_resume_after_crash_at_scanned(env):
+    revise = {"verdict": "revise", "notes": "짧게", "issues": []}
+    first = happy_llm(writer=["긴 초안", LEAKY], editor=[revise, PASS], censor_public=[Killed()])
+    with pytest.raises(Killed):
+        run(mention(), env.make_deps(first))
+    assert doc(env, 1)["status"] == "scanned"
+
+    llm = FakeLLM({"censor_public": [REDACT]})
+    result = run(mention(), env.make_deps(llm))
+
+    assert (result.outcome, result.resumed_from) == ("reviewed", "scanned")
+    assert [n for n, _ in llm.calls] == ["censor_public"]  # 초안·첨삭을 다시 하지 않았다
+    censor_user = llm.calls[0][1]
+    assert LEAKY in censor_user and "private_ip: 10.12.3.4" in censor_user
+    d = doc(env, 1)
+    assert [e["verdict"] for e in d["edit_log"]] == ["revise", "pass"]  # 첨삭 이력 보존
+    assert whats(d).count("drafted") == 1
+
+
+def test_unresumable_state_goes_to_human():
+    from rfa_common.models import Review, ReviewStatus
+    from rfa_workflow.clients import ReviewConflict
+    from rfa_workflow.nodes.intake import intake
+
+    stuck = Review(
+        id=7,
+        status=ReviewStatus.DRAFTED,
+        channel="public",
+        target="zetwhite/RFA_test#1",
+        source_url="https://github.com/zetwhite/RFA_test/issues/1",
+        requester="someone",
+        question="?",
+    )
+    deps = SimpleNamespace(review=SimpleNamespace(open=lambda m: stuck))
+    with pytest.raises(ReviewConflict, match="drafted 에서는 재개할 수 없음"):
+        intake({"mention": mention()}, deps)
+
+
+# ---------- 이미 반영된 요청은 예산과 무관하게 성공 ----------
+
+
+def test_already_applied_request_succeeds_even_when_budget_is_spent(env):
+    """재시도 2회 + verdict 응답 유실 재시도 1회 = 예산 3회 소진.
+
+    이어진 409 조회로 저장이 확인되면 한도와 무관하게 성공 → reviewed 유지.
+    """
+    knowledge = FlakyHttp(env.knowledge_http, {("get", "/tasks"): [503, 503]})
+    review = FlakyHttp(env.review_http, {("post", "/reviews/1/verdict"): ["timeout_after"]})
+    deps = env.make_deps(
+        happy_llm(), review_http_override=review, knowledge_http_override=knowledge
+    )
+
+    result = run(mention(), deps)
+
+    assert result.outcome == "reviewed"
+    assert result.recoveries[-1] == "409 POST /reviews/1/verdict: 이미 반영됨"
+    assert len(result.recoveries) == 4
+    assert doc(env, 1)["status"] == "reviewed"

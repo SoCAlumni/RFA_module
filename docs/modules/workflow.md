@@ -22,7 +22,7 @@ flowchart TD
 |---|---|---|
 | `reviewed` | 결재 대기까지 도착 | 보고만 |
 | `returned` | 관련 업무·지식을 못 찾음. 문서는 `opened` 그대로 | 질문을 보완해 `hint` 와 함께 **같은 멘션으로 한 번** 다시 부른다(같은 문서를 이어 씀) |
-| `already_handled` | 문서가 이미 진행됐거나 사람 손에 있음 | 보고만 (다시 하지 않음) |
+| `already_handled` | 문서가 이미 결재 대기(reviewed) 이후이거나 사람 손에 있음 | 보고만 (다시 하지 않음) |
 | `needs_human` | 복구 한도 초과, 또는 사람의 정보·판단이 필요 | 보고만. 사유와 복구 내역은 결재 문서에 남아 있음 |
 
 ## State
@@ -82,13 +82,25 @@ editor 기준(프롬프트): 질문에 답했는가, sources에 없는 사실을
 |---|---|---|
 | 일시적 오류: 연결 실패·타임아웃, 429, 5xx (호스트 서비스) | `clients.py`가 backoff 0.5s → 1s → 2s 로 최대 3번 재시도 (재시도마다 예산 1) | `ServiceError` → needs_human |
 | 일시적 오류 (LLM) | Anthropic SDK 가 429/5xx/연결 오류를 기본 2번 재시도 (예산 미사용) | `LLMError` → needs_human |
-| 409 상태 충돌 | 최신 문서 조회 → **내 요청이 이미 반영됨**(재시도 중 첫 요청이 사실 성공)이면 성공으로 보고 계속 (예산 1). 이미 사람이 처리한 문서(approved/posted/rejected/needs_human)면 `AlreadyHandled` | 그 밖의 충돌 `ReviewConflict` → needs_human |
+| 409 상태 충돌 | 최신 문서 조회 → **내 요청이 이미 반영됨**(재시도 중 첫 요청이 사실 성공)이면 성공으로 보고 계속. 이미 성공한 것이므로 **예산을 쓰지 않고 기록만** 한다(예산이 바닥나도 성공은 성공). 이미 사람이 처리한 문서(approved/posted/rejected/needs_human)면 `AlreadyHandled` | 그 밖의 충돌 `ReviewConflict` → needs_human |
 | 관련 업무·지식 없음 | 고른 task 가 빈 답이면 그 task 를 빼고 **한 번 더** 고름 (예산 1). task 가 `none` 이면 재선택하지 않음 | `returned` 로 supervisor 에게. supervisor 가 `hint` 를 준 재요청에서도 없으면 needs_human |
 | LLM 거절·잘림·빈 응답, censor 형식 오류 2회 | 없음 (censor 형식 오류는 1회 재시도) | needs_human |
 | 한도 초과 | — | `RecoveryExhausted` → needs_human |
 
 **중복 처리 방지**
-- 문서 생성: review 서비스가 `source_url` 로 멱등. 재시도·재요청은 같은 문서를 받는다. 받은 문서가 `opened` 가 아니면(이미 진행됐거나 끝남) 손대지 않고 `already_handled`.
+- 문서 생성: review 서비스가 `source_url` 로 멱등. 재시도·재요청·중단 후 재실행은 같은 문서를 받는다.
+
+**중단 후 재실행 (intake 가 문서 상태로 시작 지점을 정한다)**
+
+| 받은 문서 상태 | 시작 지점 | 쓰는 저장 데이터 |
+|---|---|---|
+| `opened` | ask_knowledge (처음부터) | — |
+| `knowledge_ready` | write | 지식 |
+| `scanned` | censor_public | 지식, 초안, 첨삭 이력, 스캔 결과 |
+| `reviewed` 이후, `needs_human` | 없음 → `already_handled` | — |
+| `drafted` (정상적으로는 남지 않음: scanned 와 한 번에 저장) | 없음 → needs_human | — |
+
+재개했으면 `RunResult.resumed_from` 에 그때 상태가 남는다.
 - 초안·지식·판정 제출: 응답을 못 받아 재시도하면 서버는 409 → 최신 문서에 내 내용이 있으면 성공으로 본다. 제출이 두 번 반영되는 일이 없다(events 에 한 번만).
 
 ## 호스트 호출 (`clients.py`)
@@ -137,7 +149,7 @@ workflow/
 - [x] 노드 7개(needs_human 포함) + 프롬프트 5개
 - [x] llm.py (Anthropic/Rule), clients.py
 - [x] 테스트: pass 경로, revise→pass, revise 2회 상한, 거절/censor 형식 오류 → needs_human, censor 재시도
-- [x] 복구 경로별 테스트 (`test_recovery.py`): 재시도 성공 / 재시도 한도 초과, 응답 유실 후 재시도해도 한 번만 반영, 409 사람이 처리한 문서 → already_handled / 해소 불가 → needs_human, task 재선택 성공, returned → hint 로 같은 문서 재개, hint 후에도 없음 → needs_human, 원인 섞어 합계 한도 초과
+- [x] 복구 경로별 테스트 (`test_recovery.py`): 재시도 성공 / 재시도 한도 초과, 응답 유실 후 재시도해도 한 번만 반영, 예산 소진 후에도 이미 반영된 요청은 성공, knowledge_ready·scanned 에서 중단 후 재실행 → 재개, 재개 불가 상태 → needs_human, 409 사람이 처리한 문서 → already_handled / 해소 불가 → needs_human, task 재선택 성공, returned → hint 로 같은 문서 재개, hint 후에도 없음 → needs_human, 원인 섞어 합계 한도 초과
 - [x] mcp_entry / cli
 - [ ] 실제 LLM 으로 1회 실행 → Step 9
 

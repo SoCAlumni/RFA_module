@@ -27,6 +27,8 @@ class State(TypedDict, total=False):
     failure: str  # 설정되면 failure_kind 에 따라 returned / already_handled / needs_human 으로
     failure_kind: FailureKind
     handled_status: str
+    resume_at: str  # intake 가 정한 시작 노드 (중간 상태 재개)
+    resumed_from: str  # 재개했다면 그때 문서 상태
     outcome: Outcome
 
 
@@ -37,3 +39,4 @@ class RunResult(BaseModel):
     recoveries: list[str] = Field(
         default_factory=list, description="이번 실행에서 쓴 자동 복구 내역"
     )
+    resumed_from: str | None = Field(None, description="중단된 문서를 이어서 처리했다면 그때 상태")

@@ -1,6 +1,7 @@
 """Public 대응 그래프.
 
     intake → ask_knowledge → write → edit ─(revise, rounds<2)→ write
+      (중단된 문서: intake 가 knowledge_ready → write, scanned → censor_public 로 바로 보낸다)
                                          └(pass 또는 2회)→ submit → censor_public → END(reviewed)
 
 실패는 종류별로 끝난다:
@@ -73,6 +74,13 @@ def _next(target: str) -> Callable[[State], str]:
     return route
 
 
+def _after_intake(state: State) -> str:
+    """처음이면 ask_knowledge, 중단된 문서면 저장된 데이터가 있는 다음 단계부터."""
+    if state.get("failure"):
+        return TERMINAL[state["failure_kind"]]
+    return state["resume_at"]
+
+
 def _after_edit(state: State) -> str:
     if state.get("failure"):
         return TERMINAL[state["failure_kind"]]
@@ -90,7 +98,9 @@ def build_graph(deps: Deps):
 
     ends = list(TERMINAL.values())
     g.add_edge(START, "intake")
-    g.add_conditional_edges("intake", _next("ask_knowledge"), ["ask_knowledge", *ends])
+    g.add_conditional_edges(
+        "intake", _after_intake, ["ask_knowledge", "write", "censor_public", *ends]
+    )
     g.add_conditional_edges("ask_knowledge", _next("write"), ["write", *ends])
     g.add_conditional_edges("write", _next("edit"), ["edit", *ends])
     g.add_conditional_edges("edit", _after_edit, ["write", "submit", *ends])
@@ -116,4 +126,5 @@ def run(mention: Mention, deps: Deps, hint: str | None = None) -> RunResult:
         outcome=outcome,
         summary=summary,
         recoveries=list(deps.budget.log),
+        resumed_from=final.get("resumed_from"),
     )
