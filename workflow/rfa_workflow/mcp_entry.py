@@ -20,9 +20,13 @@ def build_server(deps: Deps) -> MCPServer:
     )
 
     @mcp.tool()
-    def run(mention: Mention) -> RunResult:
-        """멘션을 받아 지식 조회 → 초안 → 첨삭 → 스캔 → 기밀검토까지 진행하고 결과를 돌려준다."""
-        return run_graph(mention, deps)
+    def run(mention: Mention, hint: str | None = None) -> RunResult:
+        """멘션을 지식 조회 → 초안 → 첨삭 → 스캔 → 기밀검토까지 진행한다.
+
+        outcome 이 returned 면 관련 업무·지식을 못 찾은 것이다. 질문을 보완하는 정보를 hint 로 주고
+        같은 mention 으로 한 번 다시 부른다(같은 결재 문서를 이어 쓴다).
+        """
+        return run_graph(mention, deps, hint)
 
     return mcp
 

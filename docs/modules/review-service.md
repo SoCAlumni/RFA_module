@@ -8,7 +8,7 @@
 
 | 메서드 | 경로 | 호출자 | 전이 | 설명 |
 |---|---|---|---|---|
-| POST | `/reviews` | LangGraph intake | → `opened` | `{channel, target, question, requester, source_url}` |
+| POST | `/reviews` | LangGraph intake | → `opened` | `{channel, target, question, requester, source_url}`. **멱등**: 같은 `source_url`의 문서가 있으면 새로 만들지 않고 기존 문서를 200 으로 돌려준다(재시도·supervisor 재요청 중복 방지) |
 | GET | `/reviews?status=` | 웹, UI, desk | — | 목록 |
 | GET | `/reviews/{id}` | 모두 | — | 문서 전체 (events 포함) |
 | POST | `/reviews/{id}/knowledge` | LangGraph | `opened → knowledge_ready` | `{answer, sources[]}` |

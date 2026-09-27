@@ -73,6 +73,18 @@ def test_anthropic_failures_become_llm_error(client, call, match):
         call(AnthropicLLM(client))
 
 
+def test_api_error_after_sdk_retries_becomes_llm_error():
+    import anthropic
+    import httpx2
+
+    class Failing:
+        def create(self, **kwargs):
+            raise anthropic.APIConnectionError(request=httpx2.Request("POST", "https://x"))
+
+    with pytest.raises(LLMError, match="APIConnectionError"):
+        call_text(AnthropicLLM(SimpleNamespace(messages=Failing())))
+
+
 def test_make_llm_modes():
     assert isinstance(make_llm({}), RuleLLM)
     gateway = make_llm(

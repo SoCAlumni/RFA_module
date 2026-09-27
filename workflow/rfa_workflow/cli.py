@@ -24,9 +24,10 @@ def main(argv: list[str] | None = None, deps: Deps | None = None) -> int:
     src = run_cmd.add_mutually_exclusive_group(required=True)
     src.add_argument("--mention-file", type=Path)
     src.add_argument("--mention-json")
+    run_cmd.add_argument("--hint", help="supervisor 재요청: 질문을 보완하는 정보 (returned 이후)")
     args = parser.parse_args(argv)
 
     raw = args.mention_file.read_text("utf-8") if args.mention_file else args.mention_json
-    result = run(Mention.model_validate_json(raw), deps or Deps.from_env())
+    result = run(Mention.model_validate_json(raw), deps or Deps.from_env(), hint=args.hint)
     sys.stdout.write(result.model_dump_json() + "\n")
     return 0

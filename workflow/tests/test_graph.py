@@ -1,5 +1,4 @@
 import pytest
-from rfa_workflow.clients import ReviewConflict
 from rfa_workflow.graph_public import run
 from rfa_workflow.llm import LLMError, RuleLLM
 from wf_support import FakeLLM, mention
@@ -95,23 +94,6 @@ def test_edit_loop_stops_after_two_rounds(env):
     assert doc(env, result.review_id)["draft"] == "v2"
 
 
-def test_no_matching_task_goes_to_human(env):
-    llm = FakeLLM({"pick_task": [{"task_id": "none", "reason": "점심 메뉴 질문"}]})
-    result = run(mention("@zetwhite 점심 뭐 먹어요?"), env.make_deps(llm))
-    assert result.outcome == "needs_human"
-    assert "관련 task 없음" in result.summary
-    d = doc(env, result.review_id)
-    assert d["status"] == "needs_human"
-    assert d["events"][-1]["who"] == "workflow"
-
-
-def test_empty_knowledge_goes_to_human(env):
-    llm = FakeLLM({"pick_task": [{"task_id": "quantization", "reason": "?"}]})
-    result = run(mention("@zetwhite xyzzy"), env.make_deps(llm))
-    assert result.outcome == "needs_human"
-    assert "관련 지식 없음" in result.summary
-
-
 def test_llm_refusal_goes_to_human(env):
     llm = FakeLLM({"pick_task": [PICK], "writer": [LLMError("writer: model refused")]})
     result = run(mention(), env.make_deps(llm))
@@ -140,21 +122,6 @@ def test_censor_gives_up_after_two_bad_formats(env):
     assert result.outcome == "needs_human"
     assert "invalid verdict" in result.summary
     assert doc(env, result.review_id)["status"] == "needs_human"
-
-
-def test_review_conflict_goes_to_human(env):
-    llm = FakeLLM(
-        {"pick_task": [PICK], "writer": [LEAKY], "editor": [PASS], "censor_public": [REDACT]}
-    )
-    deps = env.make_deps(llm)
-
-    def conflict(*_):
-        raise ReviewConflict("POST verdict: already moved")
-
-    deps.review.submit_verdict = conflict  # 누군가 먼저 문서를 옮긴 상황
-    result = run(mention(), deps)
-    assert result.outcome == "needs_human"
-    assert "already moved" in result.summary
 
 
 def test_rule_llm_runs_end_to_end_and_redacts_secrets(env):

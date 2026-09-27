@@ -53,12 +53,18 @@ class AnthropicLLM:
         if response.stop_reason == "max_tokens":
             raise LLMError(f"{name}: output truncated")
 
+    def _call(self, name: str, method: str, **kwargs: Any) -> Any:
+        """SDK 가 429/5xx/연결 오류를 이미 재시도한다. 그래도 실패하면 LLMError."""
+        try:
+            return getattr(self._client.messages, method)(
+                model=self._model, max_tokens=MAX_TOKENS, **kwargs
+            )
+        except anthropic.APIError as exc:
+            raise LLMError(f"{name}: API error {type(exc).__name__}") from exc
+
     def text(self, *, name: str, system: str, user: str, context: Mapping[str, Any]) -> str:
-        response = self._client.messages.create(
-            model=self._model,
-            max_tokens=MAX_TOKENS,
-            system=system,
-            messages=[{"role": "user", "content": user}],
+        response = self._call(
+            name, "create", system=system, messages=[{"role": "user", "content": user}]
         )
         self._check(response, name)
         text = "".join(b.text for b in response.content if b.type == "text").strip()
@@ -69,9 +75,9 @@ class AnthropicLLM:
     def structured(
         self, *, name: str, system: str, user: str, schema: type[T], context: Mapping[str, Any]
     ) -> T:
-        response = self._client.messages.parse(
-            model=self._model,
-            max_tokens=MAX_TOKENS,
+        response = self._call(
+            name,
+            "parse",
             system=system,
             messages=[{"role": "user", "content": user}],
             output_format=schema,
