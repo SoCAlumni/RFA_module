@@ -28,7 +28,7 @@
 | 7 | github MCP | 완료 (PR #9) |
 | 8 | rfa_workflow (LangGraph) | 완료 (PR #10) |
 | 9 | 호스트 E2E | 완료 (PR #11) |
-| 10 | 샌드박스 재현 | PR 리뷰 중 |
+| 10 | 샌드박스 재현 | PR #12 리뷰 중 |
 | 11 | 샌드박스 E2E + README | |
 | 12 | 멘션 대기열과 복구 (at-least-once 처리) | Step 11 뒤, 본선 전 |
 
