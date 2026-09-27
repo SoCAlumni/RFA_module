@@ -48,7 +48,14 @@ class HttpLike(Protocol):
 
 
 class ReviewConflict(Exception):
-    """review 상태기계가 전이를 거부했고, 이미 반영된 것도 아니다 (복구 불가)."""
+    """review 상태기계가 전이를 거부했고, 이미 반영된 것도 아니다 (복구 불가).
+
+    review_id 를 알면 실어 보낸다 → needs_human 이 그 문서에 사유를 남길 수 있다.
+    """
+
+    def __init__(self, message: str, review_id: int | None = None) -> None:
+        super().__init__(message)
+        self.review_id = review_id
 
 
 class AlreadyHandled(Exception):

@@ -61,6 +61,8 @@ def _guarded(node: Node, deps: Deps) -> Callable[[State], dict]:
             if isinstance(exc, AlreadyHandled):
                 update["review_id"] = exc.review.id
                 update["handled_status"] = exc.review.status
+            elif isinstance(exc, ReviewConflict) and exc.review_id is not None:
+                update["review_id"] = exc.review_id  # intake 에서 나면 아직 state 에 없다
             return update
 
     run.__name__ = node.__name__

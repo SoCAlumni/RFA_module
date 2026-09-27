@@ -1,6 +1,6 @@
 """실패 원인별 복구 경로: 자동 복구 성공 / 한도 초과 → needs_human."""
 
-from types import SimpleNamespace
+import json
 
 import pytest
 from rfa_workflow.graph_public import run
@@ -206,23 +206,23 @@ def test_resume_after_crash_at_scanned(env):
     assert whats(d).count("drafted") == 1
 
 
-def test_unresumable_state_goes_to_human():
-    from rfa_common.models import Review, ReviewStatus
-    from rfa_workflow.clients import ReviewConflict
-    from rfa_workflow.nodes.intake import intake
+def test_unresumable_state_goes_to_human_and_marks_the_doc(env, tmp_path):
+    """drafted 는 정상 저장 경로에선 남지 않는다 → 상태 파일을 직접 바꿔 재현."""
+    with pytest.raises(Killed):
+        run(mention(), env.make_deps(happy_llm(writer=[Killed()])))
+    path = tmp_path / "state" / "review-1.json"
+    stuck = json.loads(path.read_text(encoding="utf-8"))
+    stuck["status"] = "drafted"
+    path.write_text(json.dumps(stuck), encoding="utf-8")
 
-    stuck = Review(
-        id=7,
-        status=ReviewStatus.DRAFTED,
-        channel="public",
-        target="zetwhite/RFA_test#1",
-        source_url="https://github.com/zetwhite/RFA_test/issues/1",
-        requester="someone",
-        question="?",
-    )
-    deps = SimpleNamespace(review=SimpleNamespace(open=lambda m: stuck))
-    with pytest.raises(ReviewConflict, match="drafted 에서는 재개할 수 없음"):
-        intake({"mention": mention()}, deps)
+    llm = FakeLLM({})
+    result = run(mention(), env.make_deps(llm))
+
+    assert (result.outcome, result.review_id) == ("needs_human", 1)
+    assert llm.calls == []
+    d = doc(env, 1)
+    assert d["status"] == "needs_human"  # 결과뿐 아니라 문서도 사람에게 넘어갔다
+    assert "drafted 에서는 재개할 수 없음" in d["events"][-1]["detail"]
 
 
 # ---------- 이미 반영된 요청은 예산과 무관하게 성공 ----------

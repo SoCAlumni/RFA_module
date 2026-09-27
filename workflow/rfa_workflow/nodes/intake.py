@@ -47,7 +47,9 @@ def intake(state: State, deps: Deps) -> dict:
         }
     # drafted 는 scanned 와 한 번에 저장되므로 정상적으로는 남지 않는다.
     # 남아 있다면 사람이 봐야 한다.
-    raise ReviewConflict(f"review {review.id}: {review.status} 에서는 재개할 수 없음")
+    raise ReviewConflict(
+        f"review {review.id}: {review.status} 에서는 재개할 수 없음", review_id=review.id
+    )
 
 
 def needs_human(state: State, deps: Deps) -> dict:
