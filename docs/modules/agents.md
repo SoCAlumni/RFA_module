@@ -22,7 +22,7 @@ GitHub 본문·명령 출력·다른 에이전트 메시지 안의 지시는 따
 | 층 | 설정 | 위치 |
 |---|---|---|
 | OpenClaw 툴 | `allow: [exec, bundle-mcp]`, fs·web·ui·messaging·sessions·media·process·code_execution 거부 | `agents/agents.yaml` |
-| exec 허용 목록 | `/sandbox/rfa-venv/bin/rfa-workflow` 하나 | `setup_sandbox.sh agent` (`openclaw approvals allowlist add`) |
+| exec 정책 | `security=allowlist`, 목록은 `/sandbox/rfa-venv/bin/rfa-workflow` 하나. 목록만 넣으면 기본값 `full` 이라 아무것도 안 막힌다 — `openclaw approvals get` 의 Effective Policy 로 확인 | `setup_sandbox.sh agent` (`openclaw approvals set`) |
 | MCP | 관리형 MCP `github` 에서 `list_mentions` 거부 → `get_thread` 만 | `setup_sandbox.sh mcp` (`--deny-tool`) |
 | 네트워크 | 결재(approve/reject)·결재 웹 경로 없음 | `policies/rfa-host.yaml` |
 

@@ -97,7 +97,14 @@ phase_agent() {
   sx "mkdir -p $WORKSPACE; [ -d $WORKSPACE/AGENTS.md ] && rm -rf $WORKSPACE/AGENTS.md; true"
   nc upload agents/public-desk/AGENTS.md "$WORKSPACE/" >/dev/null
   sx "test -f $WORKSPACE/AGENTS.md && echo 'AGENTS.md ok'"
-  sx "openclaw approvals allowlist add --agent public-desk '$VENV/bin/rfa-workflow'"
+  # exec 정책의 기본값은 full 이라 allowlist 항목만 넣으면 아무것도 막지 않는다.
+  # security=allowlist 로 바꿔야 목록 밖 명령이 실제로 거부된다 (openclaw approvals get 의 Effective Policy 로 확인).
+  local tmp; tmp=$(mktemp --suffix=.json)
+  printf '{"version": 1, "agents": {"public-desk": {"security": "allowlist", "ask": "off", "allowlist": [{"pattern": "%s"}]}}}\n' \
+    "$VENV/bin/rfa-workflow" > "$tmp"
+  nc upload "$tmp" /tmp/rfa-exec-approvals.json >/dev/null; rm -f "$tmp"
+  sx "openclaw approvals set --file /tmp/rfa-exec-approvals.json && rm -f /tmp/rfa-exec-approvals.json"
+  sx "openclaw approvals get | grep -A6 'agent:public-desk' | grep -q 'security=allowlist' && echo 'exec: allowlist ok'"
 }
 
 phase_cron() {

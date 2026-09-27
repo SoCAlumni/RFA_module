@@ -273,7 +273,7 @@ workflow/tests/test_graph.py, fixtures/
   - policy: `pypi` + `policies/rfa-host.yaml`(`--trusted-private-host`). 워크플로(python)가 쓰는 경로만. approve/reject·결재 웹 없음
   - install: `/sandbox/rfa-venv` 에 rfa-common, rfa-workflow. 설정은 `/sandbox/rfa-workflow.env`(600)
   - mcp: 관리형 MCP `github` (`/github/mcp`, bearer 는 OpenShell 보관), 에이전트에게 `list_mentions` 거부
-  - agent: `AGENTS.md` 업로드, exec 허용 목록에 `rfa-workflow` 하나
+  - agent: `AGENTS.md` 업로드, exec 정책 `security=allowlist` + 목록 `rfa-workflow` 하나 (목록만 넣으면 기본값 full 이라 안 막힘 — Effective Policy 로 확인)
   - cron: `openclaw cron add` (public-desk, `RFA_DESK_CRON`)
   - check: 아래 완료 조건 값 출력
 - `agents/agents.yaml`, `agents/public-desk/AGENTS.md`: public-desk 는 exec(허용 목록) + bundle-mcp 만. desk-once 실행 → 결과 보고, returned 면 `get_thread` 로 힌트를 써서 `run --from-review ID --hint` 한 번.
