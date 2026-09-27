@@ -74,6 +74,24 @@ editor 기준(프롬프트): 질문에 답했는가, sources에 없는 사실을
 - 모든 LLM 호출은 `(name, system, user, context)`. `context` 는 RuleLLM 만 쓴다.
 - 서버측 refusal fallback(`fallbacks`)은 쓰지 않는다. 거절되면 사람이 보는 게 이 모듈의 설계이고, 샌드박스 게이트웨이가 베타 헤더를 넘기는지 확인되지 않았다.
 
+### OpenAI 호환 제공자 (`RFA_LLM_MODE=openai`)
+
+샌드박스를 Anthropic 이 아닌 제공자(NVIDIA Endpoints, Ollama 등)로 온보딩하면 `inference.local` 은 `/v1/messages` 를 받지 않는다(`400 no compatible inference route available`). 그때는 `OpenAICompatLLM` 을 쓴다.
+
+| env | 기본값 | 설명 |
+|---|---|---|
+| `RFA_LLM_MODE` | `mock` | `openai` 로 둔다 |
+| `OPENAI_BASE_URL` | `https://integrate.api.nvidia.com/v1` | 샌드박스: `https://inference.local/v1`. 로컬 Ollama: `http://127.0.0.1:11434/v1` |
+| `OPENAI_API_KEY` | — | 없으면 `NVIDIA_INFERENCE_API_KEY` 를 본다. 샌드박스에서는 둘 다 비워 둔다(게이트웨이가 주입) |
+| `RFA_MODEL` | `nvidia/nemotron-3-super-120b-a12b` | `.env` 에 Claude 모델명이 남아 있으면 그대로 전송되므로 바꿔 둔다. `inference.local` 은 모델명을 게이트웨이의 경로로 덮어쓴다 |
+| `RFA_MAX_TOKENS` | `4096` | 생각 과정에 토큰을 많이 쓰는 모델은 늘린다 |
+
+- `POST {OPENAI_BASE_URL}/chat/completions`. SDK 없이 `httpx` 로 보낸다.
+- JSON 이 필요한 호출: 스키마를 강제하는 방법이 제공자마다 달라서, JSON Schema 를 system 프롬프트에 싣고 출력을 pydantic 으로 검증한다. 앞뒤에 글이나 코드 블록 표시가 붙어도 첫 JSON 객체를 읽는다. 형식이 틀리면 오류를 알려 주고 **한 번** 더 시키고, 그래도 틀리면 `LLMError`.
+- `finish_reason` 이 `content_filter`/`length` 이거나 본문이 비면 `LLMError`. `reasoning` 필드와 `<think>` 블록은 읽지 않는다.
+- 429/5xx/연결 오류는 backoff 0.5s → 1s 로 2번 재시도(Anthropic SDK 기본값과 같음, 복구 예산 미사용). 그 밖의 4xx 는 재시도하지 않는다.
+- 확인(2026-09-27, 호스트, Ollama `qwen3.5:9b`, 합성 자료): task 선택, 작성, 첨삭 통과. 기밀 판정은 `RFA_MAX_TOKENS=4096` 에서 `output truncated`, `7000` 에서 통과(모델명·수치·일정 3건 검출). 호출 한 번에 50~140초. NVIDIA Endpoints 와 샌드박스 안 실행은 아직 확인하지 않았다.
+
 ## 실패 처리와 자동 복구
 
 **복구 예산**: 실행 한 번에 자동 복구는 합계 3회(`recovery.MAX_RECOVERIES`). 원인과 상관없이 넘으면 `needs_human`. 쓴 내역은 `RunResult.recoveries`와 needs_human 사유에 남는다.
