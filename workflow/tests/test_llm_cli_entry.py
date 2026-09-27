@@ -1,11 +1,10 @@
-import asyncio
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
-from rfa_workflow.cli import main
+from rfa_workflow.cli import load_env_file, main
 from rfa_workflow.llm import AnthropicLLM, LLMError, RuleLLM, make_llm
-from rfa_workflow.mcp_entry import build_server
 from rfa_workflow.nodes.press import EditOutput
 from wf_support import mention
 
@@ -158,27 +157,12 @@ def test_cli_requires_mention(capsys):
         main(["run"])
 
 
-def test_mcp_entry_exposes_run_tool(env):
-    server = build_server(env.make_deps(RuleLLM()))
-    tools = asyncio.run(server.list_tools())
-    assert [t.name for t in tools] == ["run"]
-
-    result = asyncio.run(server.call_tool("run", {"mention": mention().model_dump(mode="json")}))
-
-    assert not result.is_error
-    assert result.structured_content["outcome"] == "reviewed"
-
-
 def test_env_file_sets_missing_vars_only(tmp_path, monkeypatch):
-    from rfa_workflow.cli import load_env_file
-
     f = tmp_path / "w.env"
     f.write_text("# 주석\n\nRFA_T_A=1\nRFA_T_B = two=2\nbroken line\n", encoding="utf-8")
     monkeypatch.delenv("RFA_T_A", raising=False)
     monkeypatch.setenv("RFA_T_B", "keep")
     load_env_file(f)
-    import os
-
     assert os.environ["RFA_T_A"] == "1"
     assert os.environ["RFA_T_B"] == "keep"  # 이미 있으면 덮지 않는다
 

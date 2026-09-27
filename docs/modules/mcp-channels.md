@@ -33,25 +33,33 @@
 - nemoclaw 등록 시 `--env GITHUB_MCP_TOKEN`은 **MCP 서버 자체 인증**(bearer)용이고 GitHub 토큰이 아니다. 샌드박스에는 어느 토큰도 들어가지 않는다.
 - 게시에 쓰는 GitHub 토큰은 호스트 프로세스에만 있다.
 
-## nemoclaw 등록
+## 경로와 nemoclaw 등록
+
+같은 툴을 두 경로로 연다. OpenShell 의 MCP 규칙(`--deny-tool`)은 엔드포인트 경로 단위로 모든 프로세스에 걸려서 나눴다.
+
+| 경로 | 쓰는 쪽 | 샌드박스 정책 | list_mentions |
+|---|---|---|---|
+| `/github/mcp` | public-desk (OpenClaw, 관리형 MCP) | nemoclaw `mcp add` 가 만듦 (node/openclaw 만) | 거부 |
+| `/github/desk/mcp` | desk-once (python) | `policies/rfa-host.yaml` `rfa_github_mcp` (python 만, POST) | 허용 |
 
 ```bash
-# scripts/register_mcp.sh
-export GITHUB_MCP_TOKEN="$(openssl rand -hex 24)"     # MCP 서버 bearer, .env에도 저장
+# scripts/setup_sandbox.sh mcp
 nemoclaw rfa mcp add github \
-  --url https://rfa-host.local/github/mcp \
+  --url https://$RFA_SANDBOX_HOST:8792/github/mcp \
   --env GITHUB_MCP_TOKEN \
-  --trusted-private-host rfa-host.local \
-  --deny-tool 'post_*' --deny-tool 'admin_*'
+  --trusted-private-host $RFA_SANDBOX_HOST \
+  --deny-tool list_mentions
 ```
-- `mcp add`는 HTTPS + 비-loopback 사설 호스트만 받는다. `rfa-host.local`은 docker bridge IP(예: 172.17.0.1)로 `hosts-add`, 인증서는 mkcert, CA는 `NEMOCLAW_CORPORATE_CA_BUNDLE`.
-- `--deny-tool 'post_*'`는 이중 안전장치. 애초에 post는 MCP에 없다.
+- `mcp add`는 HTTPS + 비-loopback 사설 호스트만 받는다. 서버는 `RFA_SANDBOX_HOST`(docker 네트워크의 호스트 IP)에 `scripts/make_certs.sh` 인증서로 HTTPS 를 연다 (`rfa_hostserve`). CA 는 onboard 때 `NEMOCLAW_CORPORATE_CA_BUNDLE`.
+- 관리형 MCP 의 bearer 는 OpenShell 이 보관한다. desk-once 의 bearer 는 샌드박스 설정 파일(600)에 있다. 둘 다 같은 `GITHUB_MCP_TOKEN` 이고 할 수 있는 건 읽기 툴뿐이다.
+- post 는 MCP 에 없다(호스트 publisher 만 게시).
+- `mcp status github --tools` 의 tool discovery 는 실패로 나온다 (nemoclaw 상태 점검이 사설 IP 엔드포인트를 검사하지 못함). 런타임 호출은 된다.
 
 ## 파일 구조
 
 ```
 services/mcp_channels/
-├─ server.py        # MCPServer(/github/mcp) + BearerAuth + Host 허용 목록. uvicorn --factory mcp_channels.server:create_app
+├─ server.py        # MCPServer(/github/mcp, /github/desk/mcp) + BearerAuth + Host 허용 목록. python -m rfa_hostserve github-mcp
 ├─ github.py        # GithubClient(읽기 + create_comment), find_mentions, MentionTracker
 └─ models.py        # Thread, ThreadComment (Mention 은 rfa_common)
 services/review/publisher.py  # GithubPublisher: clearance 검증 → create_comment. RFA_PUBLISHER=github 로 선택
@@ -61,7 +69,8 @@ services/review/publisher.py  # GithubPublisher: clearance 검증 → create_com
 
 | 상대 | 방향 |
 |---|---|
-| public-desk (샌드박스) | 들어옴: list_mentions, get_thread |
+| public-desk (샌드박스) | 들어옴: get_thread (`/github/mcp`) |
+| workflow desk-once (샌드박스/호스트) | 들어옴: list_mentions, get_thread (`/github/desk/mcp`) |
 | review 서비스 publisher | 들어옴(Python): post_comment |
 | GitHub API | 나감 |
 

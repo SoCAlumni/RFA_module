@@ -12,7 +12,7 @@ from mcp_channels.github import (
     MentionTracker,
     find_mentions,
 )
-from mcp_channels.server import MCP_PATH, create_app
+from mcp_channels.server import DESK_PATH, MCP_PATH, create_app
 from review.app import create_app as create_review_app
 from review.clearance import sign
 from review.publisher import GithubPublisher, MockPublisher, PublishError, make_publisher
@@ -168,17 +168,22 @@ def mcp_client(tmp_path):
         yield client
 
 
-def rpc(client, method, params=None, token="mcp-secret"):
+def rpc(client, method, params=None, token="mcp-secret", path=MCP_PATH):
     headers = {**MCP_HEADERS, "authorization": f"Bearer {token}"}
     body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}
-    return client.post(MCP_PATH, headers=headers, json=body)
+    return client.post(path, headers=headers, json=body)
 
 
-def test_mcp_requires_bearer(mcp_client):
-    assert rpc(mcp_client, "tools/list", token="wrong").status_code == 401
-    res = mcp_client.post(MCP_PATH, headers=MCP_HEADERS, json={})
+@pytest.mark.parametrize("path", [MCP_PATH, DESK_PATH])
+def test_mcp_requires_bearer(mcp_client, path):
+    assert rpc(mcp_client, "tools/list", token="wrong", path=path).status_code == 401
+    res = mcp_client.post(path, headers=MCP_HEADERS, json={})
     assert res.status_code == 401
     assert res.json() == {"error": "unauthorized"}
+
+
+def test_mcp_serves_only_known_paths(mcp_client):
+    assert rpc(mcp_client, "tools/list", path="/github/other/mcp").status_code == 404
 
 
 def test_mcp_lists_only_read_tools(mcp_client):
@@ -196,11 +201,13 @@ def test_mcp_lists_only_read_tools(mcp_client):
     assert all(t["annotations"]["readOnlyHint"] for t in tools)
 
 
-def test_mcp_call_list_mentions(mcp_client):
+@pytest.mark.parametrize("path", [MCP_PATH, DESK_PATH])
+def test_mcp_call_list_mentions(mcp_client, path):
     res = rpc(
         mcp_client,
         "tools/call",
         {"name": "list_mentions", "arguments": {"since": "2026-09-26T09:00:00Z"}},
+        path=path,
     )
     result = res.json()["result"]
     assert not result.get("isError")

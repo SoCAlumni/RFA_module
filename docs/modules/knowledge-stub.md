@@ -51,7 +51,7 @@ data/knowledge/<task_id>/_task.yaml, *.md
 
 1. `contracts/knowledge.openapi.yaml`대로 두 엔드포인트 구현.
 2. `.env`의 `KNOWLEDGE_URL`을 실무대장 주소로 변경.
-3. 샌드박스 정책(`policies/rfa.yaml`)에 그 주소 허용 추가.
+3. 샌드박스 정책(`policies/rfa-host.yaml`의 `rfa_knowledge`)에 그 주소 허용 추가 후 `scripts/setup_sandbox.sh policy install`.
 
 ## 할 일
 

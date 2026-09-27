@@ -2,7 +2,7 @@
 # 호스트 서비스 3개를 띄운다. Ctrl+C 로 전부 종료.
 #   review      :8790  결재 문서 API + 결재 웹 (브라우저: http://127.0.0.1:8790/)
 #   knowledge   :8791  실무대장 stub
-#   github-mcp  :8792  GitHub 채널 MCP (/github/mcp)
+#   github-mcp  :8792  GitHub 채널 MCP (/github/mcp 에이전트, /github/desk/mcp 데스크)
 # 모두 127.0.0.1 에 뜨고, .env 에 RFA_SANDBOX_HOST(예: 172.18.0.1)가 있으면 샌드박스용으로 그 주소에도 뜬다
 # (github-mcp 는 그 주소에서 HTTPS: certs/ 필요, scripts/make_certs.sh).
 # 설정은 .env (없으면 cp .env.example .env). 로그는 $LOG_DIR (기본 data/state/logs).

@@ -21,7 +21,8 @@ REMOTE=/sandbox/rfa                 # workflow/, common/ 읽기 전용 마운트
 VENV=/sandbox/rfa-venv
 ENV_IN_SANDBOX=/sandbox/rfa-workflow.env
 WORKSPACE=/sandbox/.openclaw/workspace-public-desk
-MCP_URL="https://$HOST_IP:8792/github/mcp"
+MCP_URL="https://$HOST_IP:8792/github/mcp"        # public-desk 에이전트 (nemoclaw 관리형 MCP)
+DESK_MCP_URL="https://$HOST_IP:8792/github/desk/mcp"  # desk-once (python, policies/rfa-host.yaml)
 
 say() { printf '\n== %s\n' "$*"; }
 nc() { nemoclaw "$SANDBOX" "$@" 2> >(grep -v -E 'UNDICI|trace-warnings' >&2); }
@@ -61,16 +62,16 @@ phase_install() {
       $VENV/bin/pip install -q --upgrade /tmp/rfa-src/common /tmp/rfa-src/workflow; rm -rf /tmp/rfa-src;
       $VENV/bin/rfa-workflow --help >/dev/null && echo installed"
   say "install: $ENV_IN_SANDBOX (권한 600)"
+  # TLS 신뢰는 샌드박스가 이미 준다: SSL_CERT_FILE=/tmp/nemoclaw-ca-bundle.pem (OpenShell CA + certs/rfa-ca.pem)
   local tmp; tmp=$(mktemp); chmod 600 "$tmp"
   cat > "$tmp" <<ENV
 REVIEW_URL=http://$HOST_IP:8790
 KNOWLEDGE_URL=http://$HOST_IP:8791
-GITHUB_MCP_URL=$MCP_URL
+GITHUB_MCP_URL=$DESK_MCP_URL
 GITHUB_MCP_TOKEN=$GITHUB_MCP_TOKEN
 RFA_LLM_MODE=anthropic
 ANTHROPIC_BASE_URL=https://inference.local
 RFA_MODEL=${RFA_MODEL:-claude-opus-5}
-SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV
   nc upload "$tmp" "$ENV_IN_SANDBOX" >/dev/null
   rm -f "$tmp"
@@ -79,20 +80,38 @@ ENV
 
 phase_mcp() {
   say "mcp: github → $MCP_URL (호스트 서비스가 떠 있어야 해요: scripts/run_services.sh)"
-  nc mcp add github --url "$MCP_URL" --env GITHUB_MCP_TOKEN --trusted-private-host "$HOST_IP"
+  # list_mentions 는 에이전트에게서 막는다: 멘션을 가져오는 건 결정적 코드(desk-once)만 한다.
+  # 에이전트가 직접 부르면 멘션이 "본 것"으로 소비돼 워크플로로 가지 못한다.
+  # 이 차단은 /github/mcp 경로 전체에 걸리므로 desk-once 는 /github/desk/mcp 를 쓴다.
+  if nc mcp list 2>/dev/null | grep -q "github"; then
+    nc mcp update github --deny-tool list_mentions
+  else
+    nc mcp add github --url "$MCP_URL" --env GITHUB_MCP_TOKEN --trusted-private-host "$HOST_IP" \
+      --deny-tool list_mentions
+  fi
 }
 
 phase_agent() {
   say "agent: public-desk 프롬프트 + exec 허용 목록"
-  sx "mkdir -p $WORKSPACE"
-  nc upload agents/public-desk/AGENTS.md "$WORKSPACE/AGENTS.md" >/dev/null
+  # upload 의 대상은 디렉터리로 준다 (파일 경로를 주면 같은 이름의 디렉터리가 생길 수 있음)
+  sx "mkdir -p $WORKSPACE; [ -d $WORKSPACE/AGENTS.md ] && rm -rf $WORKSPACE/AGENTS.md; true"
+  nc upload agents/public-desk/AGENTS.md "$WORKSPACE/" >/dev/null
+  sx "test -f $WORKSPACE/AGENTS.md && echo 'AGENTS.md ok'"
   sx "openclaw approvals allowlist add --agent public-desk '$VENV/bin/rfa-workflow'"
 }
 
 phase_cron() {
   local expr=${RFA_DESK_CRON:-*/5 * * * *}
   say "cron: public-desk ($expr)"
-  sx "openclaw cron add rfa-desk '새 멘션을 확인해' --agent public-desk --cron '$expr' --declaration-key rfa-desk"
+  # openclaw cron 은 샌드박스 CLI 장치에 operator.admin 이 있어야 한다 (my-assistant 의 CLI 와 같은 상태).
+  # 처음엔 승격 요청이 대기로 남는다. 사람이 확인하고 승인한 뒤 이 단계를 다시 돌린다.
+  sx "openclaw cron add --name rfa-desk --message '새 멘션을 확인해' --agent public-desk --cron '$expr' --declaration-key rfa-desk" || {
+    echo "cron 등록 실패. CLI 장치 권한 승격(operator.admin) 요청을 확인하고 승인한 뒤 다시 실행하세요:" >&2
+    echo "  nemoclaw $SANDBOX exec -- openclaw devices list" >&2
+    echo "  nemoclaw $SANDBOX exec -- openclaw devices approve <requestId>" >&2
+    echo "  scripts/setup_sandbox.sh cron" >&2
+    return 1
+  }
 }
 
 phase_check() {
@@ -100,7 +119,7 @@ phase_check() {
   nc agents list | grep -E "^- " || true
   nc mcp status github --tools || true
   sx "$VENV/bin/python - <<'PY'
-import os, urllib.request, ssl
+import urllib.request
 def code(method, url):
     req = urllib.request.Request(url, method=method, data=b'{}' if method == 'POST' else None,
                                  headers={'content-type': 'application/json'})
@@ -115,6 +134,8 @@ print('review GET /reviews   ', code('GET', 'http://$HOST_IP:8790/reviews'))
 print('review approve (막혀야)', code('POST', 'http://$HOST_IP:8790/reviews/1/approve'))
 print('결재 웹 / (막혀야)     ', code('GET', 'http://$HOST_IP:8790/'))
 print('knowledge /tasks      ', code('GET', 'http://$HOST_IP:8791/tasks'))
+print('desk MCP (bearer 없음 401)', code('POST', '$DESK_MCP_URL'))
+print('에이전트 MCP 경로 (막혀야)', code('POST', '$MCP_URL'))
 PY"
 }
 

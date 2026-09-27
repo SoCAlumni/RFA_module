@@ -62,6 +62,12 @@ def test_mcp_failures_raise(tools, match):
         tools.call("list_mentions", {})
 
 
+def test_object_result_is_returned_unwrapped():
+    thread = {"target": "o/r#1", "title": "t", "comments": []}
+    tools = mcp_server({"content": [], "structuredContent": thread, "isError": False})
+    assert tools.call("get_thread", {"target": "o/r#1"}) == thread
+
+
 def test_cli_desk_once_prints_one_line_per_result(env, capsys):
     tools = mcp_server(mentions_result(mention().model_dump(mode="json")))
     assert main(["desk-once"], deps=env.make_deps(RuleLLM()), tools=tools) == 0

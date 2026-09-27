@@ -1,7 +1,7 @@
 # nemoclaw onboard --agents agents/agents.yaml 로 샌드박스 이미지에 굽는 추가 에이전트.
 # public-desk: Public 대응 supervisor. 스스로 글을 쓰지 않고, 정해진 명령만 실행한다.
 #   - exec      : rfa-workflow 만 (exec 허용 목록으로 한 번 더 제한, scripts/setup_sandbox.sh)
-#   - bundle-mcp: github MCP 읽기 툴 (list_mentions, get_thread)
+#   - bundle-mcp: github MCP 읽기 툴 get_thread (list_mentions 는 setup_sandbox.sh mcp 가 막는다: 멘션 수신은 desk-once 만)
 agents:
   - id: public-desk
     tools:

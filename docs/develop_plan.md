@@ -27,8 +27,8 @@
 | 6 | 알람/결재 웹 | 완료 (PR #8) |
 | 7 | github MCP | 완료 (PR #9) |
 | 8 | rfa_workflow (LangGraph) | 완료 (PR #10) |
-| 9 | 호스트 E2E | |
-| 10 | 샌드박스 재현 | |
+| 9 | 호스트 E2E | 완료 (PR #11) |
+| 10 | 샌드박스 재현 | PR 리뷰 중 |
 | 11 | 샌드박스 E2E + README | |
 | 12 | 멘션 대기열과 복구 (at-least-once 처리) | Step 11 뒤, 본선 전 |
 
@@ -263,9 +263,29 @@ workflow/tests/test_graph.py, fixtures/
 
 ## Step 10: 샌드박스 재현
 
-**목표.** 레포 파일만으로 `rfa` 샌드박스 생성. `docs/setup.md` 순서. 산출: `scripts/setup_sandbox.sh`, `agents/agents.yaml`, `agents/public-desk/AGENTS.md`, `policies/rfa.yaml`, mkcert 안내, workflow.run 등록, cron.
+**목표.** 레포 파일만으로 `rfa` 샌드박스를 만들고, 그 안의 public-desk 가 워크플로를 돌려 결재 대기까지 간다. `my-assistant` 는 건드리지 않는다.
 
-**완료 조건.** `nemoclaw rfa mcp status --tools`, `agents list`, 안에서 `inference.local` 200, approve 접근 실패, `nemoclaw rfa agent --agent public-desk -m "..."` 수동 트리거로 review 생성.
+**만든 것.**
+- `services/rfa_hostserve`: 호스트 서비스를 127.0.0.1 과 `RFA_SANDBOX_HOST`(샌드박스 네트워크 쪽 호스트 IP, 예 172.18.0.1)에 함께 띄운다. 같은 앱 객체라 상태가 한 곳. github-mcp 의 샌드박스 바인드는 HTTPS 만(관리형 MCP 요구). `scripts/run_services.sh` 가 이걸로 띄운다.
+- `scripts/make_certs.sh`: 로컬 CA(`certs/rfa-ca.pem`) + `IP:$RFA_SANDBOX_HOST` 서버 인증서. CA 는 onboard 때 `NEMOCLAW_CORPORATE_CA_BUNDLE` 로 샌드박스 신뢰 목록에 들어간다 (group/world 쓰기 권한이 있으면 nemoclaw 가 거부 → 644).
+- `scripts/setup_sandbox.sh [create policy install mcp agent cron check]`
+  - create: onboard (`agents/agents.yaml`, `workflow/`·`common/` 읽기 전용 host-mount. 레포 루트는 `.env` 때문에 마운트하지 않음)
+  - policy: `pypi` + `policies/rfa-host.yaml`(`--trusted-private-host`). 워크플로(python)가 쓰는 경로만. approve/reject·결재 웹 없음
+  - install: `/sandbox/rfa-venv` 에 rfa-common, rfa-workflow. 설정은 `/sandbox/rfa-workflow.env`(600)
+  - mcp: 관리형 MCP `github` (`/github/mcp`, bearer 는 OpenShell 보관), 에이전트에게 `list_mentions` 거부
+  - agent: `AGENTS.md` 업로드, exec 허용 목록에 `rfa-workflow` 하나
+  - cron: `openclaw cron add` (public-desk, `RFA_DESK_CRON`)
+  - check: 아래 완료 조건 값 출력
+- `agents/agents.yaml`, `agents/public-desk/AGENTS.md`: public-desk 는 exec(허용 목록) + bundle-mcp 만. desk-once 실행 → 결과 보고, returned 면 `get_thread` 로 힌트를 써서 `run --from-review ID --hint` 한 번.
+- MCP 경로 분리: OpenShell 의 MCP 규칙(deny-tool)은 경로 단위로 모든 바이너리에 걸린다. 그래서 같은 툴을 `/github/desk/mcp` 로도 열고(서버 `PathAlias`), desk-once(python)는 그쪽 REST 규칙으로만 간다.
+- `rfa-workflow --env-file F`, `run --from-review ID`, `RunResult.target`.
+
+**완료 조건 (결과).**
+- `setup_sandbox.sh check`: inference.local 200, review GET 200, approve 403, 결재 웹 403, knowledge 200, desk MCP(bearer 없음) 401, 에이전트 MCP 경로를 python 이 쓰면 403.
+- `nemoclaw rfa agent --agent public-desk -m "새 멘션을 확인해"` → exec desk-once → review `reviewed`(redact) 가 결재 웹에 나타남.
+- `nemoclaw rfa mcp status github --tools` 의 tool discovery 는 실패로 나온다: nemoclaw 상태 점검이 사설 IP 엔드포인트를 검사하지 못함(`no valid managed endpoint`). 런타임 호출은 된다(에이전트의 `github__get_thread` 성공).
+
+**남은 것.** cron 등록은 샌드박스 CLI 장치의 `operator.admin` 승격 승인이 필요하다(사람이 승인, `setup_sandbox.sh cron` 이 방법을 출력). cron 트리거 E2E 와 게시는 Step 11.
 
 ---
 

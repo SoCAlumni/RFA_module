@@ -5,7 +5,7 @@
 | 위치 | 구성 요소 | 구현 | 문서 |
 |---|---|---|---|
 | 샌드박스 `rfa` | `public-desk` OpenClaw 에이전트 (+cron) | 프롬프트 + agents.yaml | modules/agents.md |
-| 샌드박스 `rfa` | Public 대응 워크플로 | LangGraph, `workflow.run` 툴 | modules/workflow.md |
+| 샌드박스 `rfa` | Public 대응 워크플로 | LangGraph, `rfa-workflow` CLI (public-desk 가 exec) | modules/workflow.md |
 | 호스트 | review 서비스 (결재 문서, 스캐너, 서명, 알람/결재 웹) | FastAPI | modules/review-service.md |
 | 호스트 | knowledge stub (실무대장 계약 흉내) | FastAPI | modules/knowledge-stub.md |
 | 호스트 | 외부 채널 MCP (github) | FastMCP | modules/mcp-channels.md |
@@ -28,8 +28,9 @@ flowchart LR
   end
   HUMAN((사람))
   GH -->|멘션| MCP
-  DESK -->|list_mentions| MCP
-  DESK -->|workflow.run| WF
+  DESK -->|exec rfa-workflow desk-once| WF
+  DESK -->|get_thread| MCP
+  WF -->|list_mentions| MCP
   WF --> INF
   WF -->|ask| KS
   WF -->|reviews API| RV
@@ -55,17 +56,17 @@ flowchart LR
 |---|---|---|---|---|
 | 1 | GitHub | 사람 | — | issue #34 댓글 |
 | 2 | 샌드박스 | OpenClaw cron | `agents.yaml` cron | public-desk 깨움 |
-| 3 | 샌드박스 | LLM (public-desk) | `agents/public-desk/AGENTS.md` | `github.list_mentions` 호출 결정 |
-| 4 | 호스트 | 코드 | `services/mcp_channels/github.py::list_mentions` | GitHub API → Mention 목록 |
-| 5 | 샌드박스 | LLM (public-desk) | AGENTS.md | `workflow.run(mention)` 호출 |
-| 6 | 샌드박스 | 코드 | `workflow/.../mcp_entry.py` | 그래프 실행 시작 |
+| 3 | 샌드박스 | LLM (public-desk) | `agents/public-desk/AGENTS.md` | exec `rfa-workflow desk-once` (허용 목록의 명령 하나) |
+| 4 | 샌드박스→호스트 | 코드 | `workflow/.../desk.py` → MCP `/github/desk/mcp` | `list_mentions` 호출 |
+| 5 | 호스트 | 코드 | `services/mcp_channels/github.py` | GitHub API → 새 Mention 목록 (본 것은 기록) |
+| 6 | 샌드박스 | 코드 | `desk.py::poll_once` → `graph_public.run` | 멘션마다 그래프 실행 |
 | 7 | 샌드박스→호스트 | 코드 (intake) | `nodes/intake.py` → `POST /reviews` | review #12 `opened`. **알람 등장** |
 | 8 | 샌드박스→호스트 | LLM(task 선택) + 코드 | `nodes/knowledge.py` → `GET /tasks`, `POST /tasks/orbit/ask` | answer + sources. `knowledge_ready` |
 | 9 | 샌드박스 | LLM (writer) | `nodes/press.py`, `prompts/writer.md` | 초안 |
 | 10 | 샌드박스 | LLM (editor) | `prompts/editor.md` | pass / revise(+notes). revise면 9로, 최대 2회 |
 | 11 | 샌드박스→호스트 | 코드 (submit) | `POST /reviews/12/draft` → `scanner.py` 자동 | `drafted` → `scanned`. 스캔 결과 기록 |
 | 12 | 샌드박스→호스트 | LLM (censor_public) | `nodes/censor.py`, `prompts/censor_public.md`, `GET /policy/public` | verdict allow/redact/block + 사유. `POST /reviews/12/verdict` → `reviewed` |
-| 13 | 샌드박스 | 코드 | 그래프 END | public-desk에 "review #12 결재 대기" 반환 |
+| 13 | 샌드박스 | 코드 → LLM (public-desk) | 그래프 END → desk-once 결과 JSON | public-desk 가 "review #12 결재 대기" 보고. `returned` 면 `get_thread` 로 힌트를 써 `run --from-review 12 --hint` 한 번 |
 | 14 | 호스트 | 사람 | 결재 웹 | 원본↔수정안 비교 후 승인 |
 | 15 | 호스트 | 코드 | `approval.py` (loopback만) → `clearance.sign` → `github.post_comment` | `approved` → `posted`. GitHub에 수정본 게시 |
 
@@ -78,8 +79,9 @@ flowchart LR
 
 | 호출 주체 | 툴/엔드포인트 | 종류 | 외부 영향 | 결재 |
 |---|---|---|---|---|
-| public-desk | `github.list_mentions`, `github.get_thread` | MCP 읽기 | 없음 | 불필요 |
-| public-desk | `workflow.run` | 샌드박스 내부 | 없음 | 불필요 |
+| public-desk | `github.get_thread` (관리형 MCP `/github/mcp`, `list_mentions` 는 OpenShell 이 거부) | MCP 읽기 | 없음 | 불필요 |
+| public-desk | exec `rfa-workflow` (허용 목록 하나, 그 외 exec·fs·web 거부) | 샌드박스 내부 | 없음 | 불필요 |
+| desk-once (python) | `github.list_mentions`, `get_thread` (`/github/desk/mcp`) | MCP 읽기 | 없음 | 불필요 |
 | LangGraph 노드 | `knowledge: GET /tasks, POST /tasks/{id}/ask` | OpenAPI 읽기 | 없음 | 불필요 |
 | LangGraph 노드 | `review: POST /reviews, /knowledge, /draft, /verdict`, `GET /policy/*` | OpenAPI 쓰기(내부 상태) | 없음 | 불필요 |
 | LangGraph 노드 | `https://inference.local` | LLM | 없음 | 불필요 |
@@ -89,9 +91,9 @@ flowchart LR
 
 ## 5. 보안 경계
 
-- 샌드박스에는 GitHub 토큰, 서명 키, LLM 키가 없다. LLM 키는 OpenShell 게이트웨이가 `inference.local`에서 주입한다.
+- 샌드박스에는 GitHub 토큰, 서명 키, LLM 키가 없다. LLM 키는 OpenShell 게이트웨이가 `inference.local`에서 주입한다. 샌드박스에 있는 비밀은 MCP bearer(`/sandbox/rfa-workflow.env`, 600)뿐이고, 이것으로 할 수 있는 건 읽기 툴이다.
 - 게시는 호스트 코드만 하며, `clearance = HMAC(review_id, target, sha256(body), exp)` 검증을 통과해야 한다. 승인된 본문과 다른 본문은 해시가 달라 거부된다.
-- 승인 엔드포인트는 호스트 loopback 요청만 받는다. 샌드박스는 그 포트로 가는 정책이 없다.
+- 승인 엔드포인트는 호스트 loopback 요청만 받는다. 샌드박스 정책(`policies/rfa-host.yaml`)에는 그 경로와 결재 웹이 없다 (같은 포트의 워크플로용 경로만 열림).
 - 순서는 review 서비스 상태기계가 강제한다. LLM이 단계를 건너뛰면 409로 거부되고 문서는 멈춘다.
 - 자동 복구가 먼저다. 일시적 오류는 backoff 재시도, 409 는 최신 상태로 판단, 지식이 없으면 supervisor(public-desk)가 질문을 보완해 재요청한다. 실행당 복구 합계 3회를 넘거나 사람의 정보·판단이 필요할 때만 `needs_human` 으로 사람에게 넘긴다(`docs/modules/workflow.md` 실패 처리).
 - 게시된 답글은 사용자 계정 이름으로 달리므로, 본문 끝에 보이지 않는 `<!-- rfa-bot -->` 표시를 붙인다. 멘션 검색은 이 표시가 있는 글만 건너뛰어, 시스템이 자기 답글에 반응해 결재 요청을 반복 생성하지 않는다. 사용자가 직접 쓴 `@자기아이디`는 정상 요청으로 받는다.
@@ -105,7 +107,7 @@ flowchart LR
 | Prompt chaining | 고정 그래프 intake → … → censor |
 | Evaluator-optimizer | write ⇄ edit |
 | Human-in-the-loop | 결재 웹 |
-| Sub-agent as a tool | `workflow.run`, `knowledge ask` |
+| Sub-agent as a tool | `rfa-workflow` (public-desk 의 exec), `knowledge ask` |
 
 ## 7. 팀 통합
 

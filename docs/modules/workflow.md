@@ -105,14 +105,18 @@ editor 기준(프롬프트): 질문에 답했는가, sources에 없는 사실을
 
 ## 호스트 호출 (`clients.py`)
 
-- `REVIEW_URL`(기본 `http://127.0.0.1:8790`), `KNOWLEDGE_URL`(기본 `:8791`). 샌드박스 안에서는 `https://rfa-host.local/...` (Step 10).
+- `REVIEW_URL`(기본 `http://127.0.0.1:8790`), `KNOWLEDGE_URL`(기본 `:8791`). 샌드박스 안에서는 `http://$RFA_SANDBOX_HOST:8790`, `:8791` (`/sandbox/rfa-workflow.env`, `policies/rfa-host.yaml` 이 여는 경로만).
 - 요청마다 `X-RFA-Actor` 로 노드 이름을 보낸다(intake, knowledge, press, censor_public, workflow) → 결재 문서 events.
 
 ## 실행과 노출
 
-- CLI: `python -m rfa_workflow run --mention-file m.json [--hint "..."]` (또는 `--mention-json`). 결과 `{review_id, outcome, summary, recoveries}` 한 줄 JSON.
-- 호스트 데스크: `python -m rfa_workflow desk-once` (`scripts/demo_host.sh`). GitHub MCP(`GITHUB_MCP_URL`, `GITHUB_MCP_TOKEN`)의 `list_mentions` 로 새 멘션을 받아 하나씩 `run`. public-desk 대신 호스트에서 전체를 돌릴 때(Step 9)와, 샌드박스 연결이 막혔을 때의 대안. `returned` 는 다시 부르지 않고 보고만 한다(LLM supervisor 가 없으므로).
-- stdio MCP (`python -m rfa_workflow.mcp_entry`): 툴 `run(mention, hint?) -> RunResult`. OpenClaw public-desk 가 부른다(Step 10, nemoclaw `mcp add` 는 HTTP 전용이라 openclaw config 로 직접 등록). 안 되면 exec 스킬로 CLI 를 부르는 2안.
+- CLI: `rfa-workflow [--env-file F] run --mention-file m.json [--hint "..."]` (또는 `--mention-json`, `--from-review ID`). 결과 `{review_id, target, outcome, summary, recoveries, ...}` 한 줄 JSON.
+  - `--env-file`: `KEY=VALUE` 설정 파일. 이미 있는 환경변수는 덮지 않는다. 샌드박스에서는 exec 명령을 고정하려고 설정을 파일 하나로 넘긴다.
+  - `--from-review ID`: 저장된 결재 문서에서 멘션을 되살려 다시 실행(`returned` 뒤 hint 재요청). LLM 이 멘션 JSON 을 만들지 않아도 된다.
+- 데스크: `rfa-workflow desk-once`. GitHub MCP(`GITHUB_MCP_URL`=`/github/desk/mcp`, `GITHUB_MCP_TOKEN`)의 `list_mentions` 로 새 멘션을 받아 하나씩 `run`. `returned` 는 다시 부르지 않고 결과만 낸다.
+  - 샌드박스(Step 10): public-desk 가 exec 로 실행하고, `returned` 면 hint 를 써서 `run --from-review` 로 한 번 재요청한다 (`docs/modules/agents.md`).
+  - 호스트(Step 9): `scripts/demo_host.sh`. 샌드박스 연결이 막혔을 때의 대안.
+  - 에이전트용 MCP 경로(`/github/mcp`)는 OpenShell 이 `list_mentions` 를 막으므로 데스크는 `/github/desk/mcp` 를 쓴다.
 
 ## 파일 구조
 
@@ -129,9 +133,8 @@ workflow/
 │  ├─ clients.py              # ReviewClient, KnowledgeClient (재시도, 409 해소)
 │  ├─ recovery.py             # RecoveryBudget (실행당 복구 합계 상한)
 │  ├─ prompts/ pick_task.md, writer.md, style_public.md, editor.md, censor_public.md
-│  ├─ cli.py, __main__.py       # run / desk-once
-│  ├─ desk.py                 # 호스트 데스크: McpTools(최소 JSON-RPC) + poll_once
-│  └─ mcp_entry.py
+│  ├─ cli.py, __main__.py       # run / desk-once, --env-file, --from-review (console script: rfa-workflow)
+│  └─ desk.py                 # 데스크: McpTools(최소 JSON-RPC) + poll_once
 └─ tests/  wf_support.py(FakeLLM, FlakyHttp 장애 주입, 실제 review·knowledge 앱을 프로세스 안에서),
           test_graph.py, test_recovery.py, test_llm_cli_entry.py, test_desk.py
 ```
@@ -140,7 +143,7 @@ workflow/
 
 | 상대 | 방향 |
 |---|---|
-| public-desk | 들어옴: `workflow.run` |
+| public-desk | 들어옴: exec `rfa-workflow desk-once`, `run --from-review --hint` |
 | knowledge stub / 실무대장 | 나감 |
 | review 서비스 | 나감 |
 | inference.local | 나감 |
@@ -152,8 +155,8 @@ workflow/
 - [x] llm.py (Anthropic/Rule), clients.py
 - [x] 테스트: pass 경로, revise→pass, revise 2회 상한, 거절/censor 형식 오류 → needs_human, censor 재시도
 - [x] 복구 경로별 테스트 (`test_recovery.py`): 재시도 성공 / 재시도 한도 초과, 응답 유실 후 재시도해도 한 번만 반영, 예산 소진 후에도 이미 반영된 요청은 성공, knowledge_ready·scanned 에서 중단 후 재실행 → 재개, 재개 불가 상태 → needs_human, 409 사람이 처리한 문서 → already_handled / 해소 불가 → needs_human, task 재선택 성공, returned → hint 로 같은 문서 재개, hint 후에도 없음 → needs_human, 원인 섞어 합계 한도 초과
-- [x] mcp_entry / cli
-- [ ] 실제 LLM 으로 1회 실행 → Step 9
+- [x] cli (`run`, `desk-once`, `--env-file`, `--from-review`)
+- [x] 실제 LLM 으로 1회 실행 (Step 9 호스트, Step 10 샌드박스)
 
 ## 미정
 

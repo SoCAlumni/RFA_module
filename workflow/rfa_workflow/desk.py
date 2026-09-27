@@ -17,7 +17,7 @@ from rfa_workflow.deps import Deps
 from rfa_workflow.graph_public import run
 from rfa_workflow.state import RunResult
 
-DEFAULT_MCP_URL = "http://127.0.0.1:8792/github/mcp"
+DEFAULT_MCP_URL = "http://127.0.0.1:8792/github/desk/mcp"
 
 
 class McpError(Exception):
@@ -56,7 +56,9 @@ class McpTools:
         result = payload["result"]
         if result.get("isError"):
             raise McpError(f"{name}: {result['content'][0]['text']}")
-        return result["structuredContent"]["result"]
+        content = result["structuredContent"]
+        # 목록 같은 비객체 반환값만 {"result": ...} 로 감싸진다 (객체는 그대로)
+        return content["result"] if set(content) == {"result"} else content
 
 
 def poll_once(tools: McpTools, deps: Deps) -> list[RunResult]:

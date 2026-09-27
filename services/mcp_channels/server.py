@@ -1,11 +1,15 @@
-"""GitHub 채널 MCP 서버 (streamable HTTP, /github/mcp).
+"""GitHub 채널 MCP 서버 (streamable HTTP, /github/mcp 와 /github/desk/mcp).
 
-실행: uvicorn --factory mcp_channels.server:create_app --port 8792
+실행: python -m rfa_hostserve github-mcp --port 8792
 필요한 env: GITHUB_TOKEN, RFA_GITHUB_LOGIN, RFA_GITHUB_REPOS, GITHUB_MCP_TOKEN
 - GITHUB_MCP_TOKEN: 이 MCP 서버에 붙는 쪽(샌드박스)이 보내야 하는 bearer. GitHub 토큰과 다르다.
 - RFA_MCP_ALLOWED_HOSTS: Host 헤더 허용 목록 (DNS rebinding 방지). 기본 127.0.0.1:*,localhost:*
 
 에이전트에게는 읽기 툴만 노출한다. 게시(create_comment)는 여기 없다.
+
+두 경로는 같은 툴을 연다. OpenShell 정책이 경로 단위로 걸리기 때문에 나눴다:
+- MCP_PATH : OpenClaw managed MCP (public-desk 에이전트). list_mentions 는 OpenShell 이 막는다.
+- DESK_PATH: 샌드박스 python(rfa-workflow desk-once) 전용 REST 규칙. 멘션 수신은 여기로만.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from mcp_channels.github import GithubClient, GithubConfig, MentionTracker
 from mcp_channels.models import Thread
 
 MCP_PATH = "/github/mcp"
+DESK_PATH = "/github/desk/mcp"
 DEFAULT_ALLOWED_HOSTS = "127.0.0.1:*,localhost:*"
 READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True)
 
@@ -44,6 +49,20 @@ class BearerAuth:
             if not hmac.compare_digest(got, self._expected):
                 await JSONResponse({"error": "unauthorized"}, status_code=401)(scope, receive, send)
                 return
+        await self._app(scope, receive, send)
+
+
+class PathAlias:
+    """alias 경로 요청을 target 경로로 넘기는 ASGI 래퍼."""
+
+    def __init__(self, app: ASGIApp, alias: str, target: str) -> None:
+        self._app = app
+        self._alias = alias
+        self._target = target
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["path"] == self._alias:
+            scope = {**scope, "path": self._target, "raw_path": self._target.encode()}
         await self._app(scope, receive, send)
 
 
@@ -87,4 +106,4 @@ def create_app(
         json_response=True,
         transport_security=TransportSecuritySettings(allowed_hosts=[h.strip() for h in allowed]),
     )
-    return BearerAuth(app, mcp_token)
+    return BearerAuth(PathAlias(app, DESK_PATH, MCP_PATH), mcp_token)

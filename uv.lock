@@ -1240,7 +1240,6 @@ dependencies = [
     { name = "anthropic" },
     { name = "httpx" },
     { name = "langgraph" },
-    { name = "mcp" },
     { name = "rfa-common" },
 ]
 
@@ -1249,7 +1248,6 @@ requires-dist = [
     { name = "anthropic", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "langgraph", specifier = ">=1.0" },
-    { name = "mcp", specifier = ">=2.2,<3" },
     { name = "rfa-common", editable = "common" },
 ]
 

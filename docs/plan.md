@@ -46,7 +46,7 @@
   │
   ▼
 [샌드박스 rfa]
-  public-desk (OpenClaw, cron) ── github.list_mentions ──► workflow.run(mention)
+  public-desk (OpenClaw, cron) ── exec rfa-workflow desk-once ──► list_mentions → 멘션마다 run
                                                             │ LangGraph (Public 대응 그래프)
                                                             │ intake → ask_knowledge → write ⇄ edit
                                                             │ → submit → censor_public → 결재 대기
@@ -75,6 +75,6 @@
 
 | 리스크 | 대응 |
 |---|---|
-| 샌드박스 → 호스트 서비스 네트워크 연결 (`mcp add`는 HTTPS + 비-loopback 사설 호스트만) | docker bridge IP + mkcert. 막히면 LangGraph를 호스트에서 돌려 데모 확보 후 이전 |
-| `workflow.run`을 OpenClaw 툴로 노출하는 방식 | stdio MCP 우선, 안 되면 exec 스킬 |
+| 샌드박스 → 호스트 서비스 네트워크 연결 (`mcp add`는 HTTPS + 비-loopback 사설 호스트만) | (Step 10 해결) docker 네트워크의 호스트 IP 에 서비스 바인드 + 로컬 CA(`make_certs.sh`) + `--trusted-private-host` 정책 + 호스트 방화벽 허용. 막히면 LangGraph를 호스트에서 돌린다 |
+| `workflow.run`을 OpenClaw 툴로 노출하는 방식 | (Step 10 결정) exec 허용 목록의 `rfa-workflow` CLI. 멘션 수신을 LLM 이 아니라 코드(desk-once)에 고정하려고 stdio MCP 는 쓰지 않는다 |
 | 실무대장 계약이 민섭님 구현과 어긋남 | 계약을 일요일 미팅 전에 공유, stub은 계약만 지킴 |

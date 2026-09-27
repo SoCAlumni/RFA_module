@@ -71,8 +71,8 @@ def plan_binds(target: str, port: int, env: Mapping[str, str]) -> list[Bind]:
     return binds
 
 
-async def _serve(app: Any, binds: list[Bind]) -> None:
-    servers = [
+def build_servers(app: Any, binds: list[Bind]) -> list[uvicorn.Server]:
+    return [
         uvicorn.Server(
             uvicorn.Config(
                 app,
@@ -86,6 +86,9 @@ async def _serve(app: Any, binds: list[Bind]) -> None:
         )
         for i, b in enumerate(binds)
     ]
+
+
+async def serve_all(servers: list[uvicorn.Server]) -> None:
     await asyncio.gather(*(s.serve() for s in servers))
 
 
@@ -98,7 +101,7 @@ def main(argv: list[str] | None = None) -> None:
     for b in binds:
         scheme = "https" if b.tls_cert else "http"
         print(f"{args.target}: {scheme}://{b.host}:{b.port}", flush=True)
-    asyncio.run(_serve(APPS[args.target](), binds))
+    asyncio.run(serve_all(build_servers(APPS[args.target](), binds)))
 
 
 if __name__ == "__main__":
