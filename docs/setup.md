@@ -46,7 +46,9 @@ uv run --env-file .env python -m rfa_workflow redo 1                   # → 안
 ./scripts/run_desk.sh --once  # 한 틱만
 ```
 
-- 감시 레포 이슈에 `@<RFA_GITHUB_LOGIN>` 멘션을 달면 다음 틱에 결재함(http://127.0.0.1:8790/)에 안건이 뜬다.
+- GitHub 받기는 두 모드다 (`RFA_GITHUB_MODE`, [docs/tokens.md](tokens.md) §2):
+  - `mentions`(기본): `RFA_GITHUB_REPOS` 레포 이슈에 `@나` 멘션 → 다음 틱(5초)에 결재함(http://127.0.0.1:8790/)에 안건.
+  - `notifications`: 남이 보낸 멘션·내 이슈의 댓글·지정·리뷰 요청이 **레포 무관**하게 오고(최대 1분 — GitHub 이 폴링 주기를 정함), 셀프 멘션은 `RFA_GITHUB_REPOS` 레포에서만.
 - 거절하면 다음 틱에 사유를 반영한 새 초안이 올라온다. 실패한 작업은 30초·60초 뒤 다시, 3번째 실패에서 포기한다.
 - 실제 GitHub 에 게시하려면 `.env` 를 `RFA_PUBLISHER=live` 로 바꾸고 run_services.sh 를 다시 띄운다. 승인하면 그 이슈에 **내 계정 이름으로** 댓글이 달린다 (숨김 표시 `<!-- rfa-bot -->` 가 붙어 desk 가 자기 답글에 다시 반응하지 않는다).
 - 이미 본 멘션 기록은 `data/state/mentions_seen.json`. 지우면 최근 24시간 멘션을 다시 가져온다.

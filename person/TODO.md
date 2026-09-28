@@ -14,6 +14,15 @@
 - [x] 다른 계정 확보 (김아무개) — **셀프 멘션은 동작하지 않음** (비서가 내 메시지를 전부 무시), 다른 계정 필수
 - [x] Slack E2E: 다른 계정 멘션 → 결재 → 내 이름으로 스레드 답글 (2026-09-27)
 
+## 1.5. (선택) GitHub 알림 모드 쓰려면 — classic PAT
+
+`RFA_GITHUB_MODE=notifications` 로 바꾸면 레포 지정 없이 내게 온 멘션·댓글·리뷰 요청을 다 받는다.
+그러려면 **classic PAT** 가 필요하다 (지금 쓰는 fine-grained 는 알림 API 미지원):
+
+- [ ] [docs/tokens.md](../docs/tokens.md) §2-2 대로 classic PAT 발급 (scopes `notifications`+`public_repo`) → `.env` 의 `GITHUB_TOKEN` 교체, `RFA_GITHUB_MODE=notifications`
+- 알림은 자기 행동엔 안 오므로, 남이 보낸 경로 데모에는 다른 계정/팀원 멘션이 필요 (셀프 멘션은 `RFA_GITHUB_REPOS` 레포에서 계속 동작)
+- 안 바꾸면 지금 그대로(mentions 모드) 계속 동작한다
+
 ## 2. 팀에 확인할 것
 
 - [x] ~~대응 에이전트가 하나인지 채널마다 하나인지~~ → **하나**로 구현 완료 (bird-eye view 채택, [docs/plan.md](../docs/plan.md) 확정 결정 표)

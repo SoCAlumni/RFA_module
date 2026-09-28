@@ -35,7 +35,7 @@
 │  GitHub  │      │  C. desk  (python -m rfa_workflow desk)                  │
 │  이슈    │◄────►│  ┌───────────────────────────────────────────────────┐  │
 │ @login   │ 폴링 │  │ channels/github.py   channels/slack.py            │  │
-└──────────┘      │  │   (멘션 폴링)          (Socket Mode 수신)           │  │
+└──────────┘      │  │  (알림/멘션 폴링)       (Socket Mode 수신)           │  │
 ┌──────────┐      │  └───────────┬───────────────────┬───────────────────┘  │
 │  Slack   │◄────►│              ▼   Mention          ▼                       │
 │ @나·DM   │ 소켓 │  ┌───────────────────────────────────────────────────┐  │
@@ -63,7 +63,7 @@
 | `contracts/approvals.openapi.yaml` | 프런트·desk → 결재 서버 | 1 |
 | `services/head_stub/` | `POST /ask` stub | 2 |
 | `services/channels/base.py`, `registry.py` | 채널 공통 약속(`poll`, `post`)과 `RFA_CHANNELS` 로 켜기 | 4 |
-| `services/channels/github.py` | GitHub 멘션 찾기(폴링) + 스레드 맥락, 댓글 달기 | 2, 4 |
+| `services/channels/github.py` | GitHub 받기(모드: 알림 폴링 또는 멘션 스캔) + 스레드 맥락, 댓글 달기 | 2, 4, 10 |
 | `services/channels/slack.py` | Slack Socket Mode 수신, 스레드 읽기, 답글 | 7 |
 | `services/approvals/` | 결재 서버 + 참조 웹 | 3 |
 | `workflow/rfa_workflow/graph.py` | 대응 에이전트 그래프 (`run`, 거절 안건 `redo`) | 5 |
@@ -96,7 +96,7 @@
 - 게시는 결재 서버만 한다. desk 에는 게시 경로가 없다 (채널의 `post()` 를 부르는 곳은 approvals 뿐).
 - 결재 API 에는 인증이 없다. 에이전트가 승인을 부르지 못하게 막는 것은 샌드박스 네트워크 정책(다영님).
 - 그래프는 요청 사이에 기억을 남기지 않는다 (실행마다 새 상태). 앞 요청의 지식이 다른 채널의 답에 섞이지 않는다.
-- 게시한 GitHub 답글에는 보이지 않는 `<!-- rfa-bot -->` 표시를 붙여, 멘션 폴링이 자기 답글에 다시 반응하지 않게 한다. Slack 은 **내가 보낸 메시지**를 이벤트에서 거른다 — 비서 답글도 내 이름으로 달리므로 이 규칙 하나로 루프가 막힌다 (Step 7).
+- 게시한 GitHub 답글에는 보이지 않는 `<!-- rfa-bot -->` 표시를 붙여, 알림·멘션 폴링이 자기 답글에 다시 반응하지 않게 한다. Slack 은 **내가 보낸 메시지**를 이벤트에서 거른다 — 비서 답글도 내 이름으로 달리므로 이 규칙 하나로 루프가 막힌다 (Step 7).
 
 ## 5. 팀 통합
 

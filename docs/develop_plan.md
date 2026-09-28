@@ -7,9 +7,9 @@
 
 | 항목 | 값 |
 |---|---|
-| 진행 중 단계 | **Step 8** (`step-08-bootstrap`) — PR #22 리뷰 대기 |
-| 마지막 머지 | Step 7 (PR #21). GitHub·Slack 실 E2E 완료 |
-| 다음 할 일 | Step 7 PR 리뷰·머지 → 데모 준비. **Slack E2E 완료** (9/27 22:44, 다른 계정 멘션 → 6초 뒤 안건 → 승인 → 내 이름으로 스레드 답글) |
+| 진행 중 단계 | **Step 10** (`step-10-github-noti`) — PR #24 리뷰 대기 |
+| 마지막 머지 | Step 9 (PR #23, LLM provider 전환) |
+| 다음 할 일 | Step 10 PR 리뷰·머지 → (notifications 모드 써보려면) classic PAT 발급 → 데모 준비 |
 | 순서 변경 (9/27) | Slack 앱 세팅이 오래 걸려 Slack 을 마지막(Step 7)으로 미룸. 진행 순서: 5 → 4 → 6(GitHub E2E) → 7(Slack) |
 | Slack 방식 변경 (9/27) | 봇(`@rfa-desk`) 멘션 대신 **User Token(`xoxp-`) 으로 나로서 수신·게시** — 비서 컨셉(나에게 오는 1차 연락을 받음)과 GitHub 채널(내 PAT) 구조에 맞춤 |
 | 사람이 할 일 | `person/TODO.md` (Slack 앱 만들기, 팀 확인 사항) |
@@ -40,7 +40,8 @@
 | 6 | desk 상주 루프 + 스크립트 + GitHub E2E | `step-06-desk` | 완료 (PR #20) |
 | 7 | Slack 어댑터 (User Token + Socket Mode) + Slack E2E | `step-07-slack` | 완료 (PR #21) |
 | 8 | AI 온보딩 문서 (BOOTSTRAP, tokens, Slack 매니페스트) | `step-08-bootstrap` | 완료 (PR #22) |
-| 9 | LLM provider 전환 (.env) — 무료 nemotron 기본, gemini·claude 선택 | `step-09-llm-providers` | 리뷰 대기 (PR #23) |
+| 9 | LLM provider 전환 (.env) — 무료 nemotron 기본, gemini·claude 선택 | `step-09-llm-providers` | 완료 (PR #23) |
+| 10 | GitHub 받기 모드: 내 알림함 폴링(notifications) 추가 — 기존 멘션 스캔은 기본값으로 보존 | `step-10-github-noti` | 리뷰 대기 (PR #24) |
 
 ---
 
@@ -233,6 +234,17 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 - 모델은 provider 별 기본값 (`RFA_MODEL` 비우면: openrouter/nvidia→nemotron, gemini→gemini-3.8-flash, anthropic→claude-sonnet-4-6). Claude 는 `RFA_LLM_MODE=anthropic` 으로 그대로 선택 가능 (9/27 결정: 기본만 nemotron 으로 교체, anthropic 유지).
 - nemotron 은 **reasoning 을 끈다** (nvidia: `chat_template_kwargs.enable_thinking=false`, openrouter: `reasoning.enabled=false`) — 켜 두면 생각 토큰을 수천 자 생성하느라 실제 writer 프롬프트에서 ReadTimeout 이 났다 (NVIDIA 키 실 E2E 로 확인: 끄면 6초, 켜면 120초+). 타임아웃은 300초.
 - 키 발급 절차는 docs/tokens.md 3절에 provider 별로 정리 (openrouter.ai/keys 무료 · build.nvidia.com · aistudio.google.com/apikey · console.anthropic.com).
+
+## Step 10: GitHub 알림(notifications) 모드  (`step-10-github-noti`)
+
+**목표.** "비서가 내 GitHub 알림함을 대신 본다" — `GET /notifications?participating=true` 폴링으로 남이 보낸 멘션·내가 연 이슈/PR 의 댓글·담당 지정·리뷰 요청을 **레포 무관**하게 받는다. **기존 fine-grained PAT 동작은 깨지 않는다**: `RFA_GITHUB_MODE=mentions`(기본)가 지금까지의 스캔 그대로다.
+
+결정 (2026-09-28): 반응 범위는 participating 전부(사유 허용목록으로 ci·state_change 등 제외) / 읽음 처리 안 함(내 알림함 배지 유지, 중복은 로컬 `notifications_seen.json`) / 셀프 멘션은 GitHub 이 자기 행동에 알림을 안 주므로 `RFA_GITHUB_REPOS` 레포에서 "내가 쓴 @나"만 스캔으로 보탬(남의 글은 스캔이 무시 — 알림과 이중 접수 방지) / 모드 스위치로 무파괴.
+
+- `channels/github.py`: `GithubConfig.mode`(+검증: mentions 는 REPOS 필수, notifications 는 TOKEN 만), `GithubClient.me()`·`notifications()`(페이지네이션+X-Poll-Interval)·`fetch()`, `NotificationTracker`(사유·타입 허용목록, `{thread_id: updated_at}` 로 같은 스레드의 새 댓글만 다시), `find_mentions(..., self_only)`, `GithubChannel.poll()` 모드 분기 — notifications 는 GitHub 이 정한 간격(기본 60초)으로 스로틀, mentions 는 기존대로 매 틱. `RFA_GITHUB_LOGIN` 은 선택(없으면 `me()` 자동, 있으면 그대로 존중).
+- 알림 API 는 classic PAT 전용("only support personal access token (classic)") — 권한 `notifications`+`public_repo`. 토큰 절차는 `docs/tokens.md` §2 (두 모드).
+- 테스트 39 (github) + registry 9: 댓글/이슈본체 알림 변환, 사유 허용목록 8종, PR 수용·Discussion 제외, 같은 스레드 updated_at 중복/갱신, 마커·내 글 스킵, 스로틀·재시작, 레포 필터, 페이지네이션 51, 알림+셀프 동시, REPOS 없으면 스캔 생략, **mentions 모드 무파괴**(기존 규칙·셀프 인정·추적·스로틀 없음·자동 login), 게시 후 두 모드 모두 재반응 없음.
+- desk·workflow·approvals 는 무수정 (Channel 인터페이스 보존; approvals 테스트는 GithubChannel 생성자 인자만 갱신).
 
 ## 검증 (전체)
 
