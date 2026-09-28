@@ -43,7 +43,7 @@ OPENAI_COMPAT_PROVIDERS: dict[str, tuple[str, str, str, dict[str, Any]]] = {
     "gemini": (
         "https://generativelanguage.googleapis.com/v1beta/openai",
         "GEMINI_API_KEY",
-        "gemini-2.5-flash",
+        "gemini-3.8-flash",  # 2.5-flash 는 신규 사용자에게 404 (2026-09)
         {},
     ),
 }
@@ -131,10 +131,18 @@ class OpenAICompatLLM:
             raise LLMError(f"{name}: API error {type(exc).__name__}") from exc
 
         if response.status_code >= 400:
-            # 원인이 보이게 (예: 401 키 없음, 429 무료 한도 초과, 모델 없음)
+            # 원인이 보이게 (예: 401 키 없음, 429 무료 한도 초과, 모델 없음).
+            # 보통 {"error": {...}} 지만 Gemini 는 [{"error": {...}}] 리스트로 준다.
             try:
-                detail = str(response.json().get("error", {}).get("message", ""))
+                body = response.json()
             except ValueError:
+                body = None
+            if isinstance(body, list) and body:
+                body = body[0]
+            error = body.get("error") if isinstance(body, dict) else None
+            if isinstance(error, dict):
+                detail = str(error.get("message", ""))
+            else:
                 detail = response.text
             raise LLMError(f"{name}: API {response.status_code} {detail[:160]}".rstrip())
 

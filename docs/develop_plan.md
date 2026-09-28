@@ -230,7 +230,7 @@ ask_head → write → submit → END        (어느 노드든 ServiceError/LLME
 
 - 기본 모델을 무료로 (9/27 사용자 결정): `RFA_LLM_MODE=openrouter` + `nvidia/nemotron-3.5-lightning:free` 가 `.env` 기본. 코드상 기본(env 비었을 때)은 여전히 mock — 테스트·CI 가 키 없이 돈다.
 - `llm.py` 에 `OpenAICompatLLM` 하나 추가 (httpx, 새 의존성 없음) — OpenAI chat/completions 호환이라 openrouter·nvidia(integrate.api.nvidia.com)·gemini(OpenAI 호환 엔드포인트) 를 전부 커버. 오류 계약은 AnthropicLLM 과 동일 (4xx/5xx·연결 오류·content_filter→refused·length→truncated·빈 응답 → `LLMError`).
-- 모델은 provider 별 기본값 (`RFA_MODEL` 비우면: openrouter/nvidia→nemotron, gemini→gemini-2.5-flash, anthropic→claude-sonnet-4-6). Claude 는 `RFA_LLM_MODE=anthropic` 으로 그대로 선택 가능 (9/27 결정: 기본만 nemotron 으로 교체, anthropic 유지).
+- 모델은 provider 별 기본값 (`RFA_MODEL` 비우면: openrouter/nvidia→nemotron, gemini→gemini-3.8-flash, anthropic→claude-sonnet-4-6). Claude 는 `RFA_LLM_MODE=anthropic` 으로 그대로 선택 가능 (9/27 결정: 기본만 nemotron 으로 교체, anthropic 유지).
 - nemotron 은 **reasoning 을 끈다** (nvidia: `chat_template_kwargs.enable_thinking=false`, openrouter: `reasoning.enabled=false`) — 켜 두면 생각 토큰을 수천 자 생성하느라 실제 writer 프롬프트에서 ReadTimeout 이 났다 (NVIDIA 키 실 E2E 로 확인: 끄면 6초, 켜면 120초+). 타임아웃은 300초.
 - 키 발급 절차는 docs/tokens.md 3절에 provider 별로 정리 (openrouter.ai/keys 무료 · build.nvidia.com · aistudio.google.com/apikey · console.anthropic.com).
 

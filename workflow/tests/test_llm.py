@@ -165,6 +165,16 @@ def test_openai_compat_status_error_shows_cause():
         llm.text(name="writer", system="S", user="U", context={})
 
 
+def test_openai_compat_list_error_body_shows_cause():
+    # Gemini 의 OpenAI 호환 엔드포인트는 오류를 [{"error": {...}}] 리스트로 준다
+    body = [
+        {"error": {"code": 404, "message": "models/gemini-x is not found", "status": "NOT_FOUND"}}
+    ]
+    llm, _ = openai_compat_with(httpx.Response(404, json=body))
+    with pytest.raises(LLMError, match="writer: API 404 models/gemini-x is not found"):
+        llm.text(name="writer", system="S", user="U", context={})
+
+
 def test_openai_compat_connection_error():
     def boom(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("down", request=request)

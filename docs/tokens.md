@@ -74,7 +74,7 @@ print('GitHub 토큰·레포 OK:', ch.config.repos)"
 
 **Gemini** `[사람]`:
 1. https://aistudio.google.com/apikey → **Create API key** → 복사
-2. `.env`: `GEMINI_API_KEY=...`, `RFA_LLM_MODE=gemini` (기본 모델 `gemini-2.5-flash`)
+2. `.env`: `GEMINI_API_KEY=...`, `RFA_LLM_MODE=gemini` (기본 모델 `gemini-3.8-flash`)
 
 **Anthropic (Claude)** `[사람]`:
 1. https://console.anthropic.com → **API Keys** → **Create Key** → 복사 (크레딧이 있어야 호출된다)
