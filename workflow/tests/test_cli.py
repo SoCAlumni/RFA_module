@@ -36,11 +36,13 @@ def test_redo_unknown_approval_fails(env, capsys):
 
 
 def test_deps_from_env_reads_urls_and_llm_mode():
-    deps = Deps.from_env({"HEAD_URL": "http://head:9", "APPROVALS_URL": "http://appr:8"})
+    deps = Deps.from_env(
+        {"HEAD_URL": "http://head:9", "APPROVALS_URL": "http://appr:8", "RFA_LLM_MODE": "mock"}
+    )
     assert str(deps.head._http.base_url) == "http://head:9"
     assert str(deps.approvals._http.base_url) == "http://appr:8"
     assert isinstance(deps.llm, RuleLLM)
-    defaults = Deps.from_env({"HEAD_URL": ""})  # 빈 값이면 기본 주소
+    defaults = Deps.from_env({"HEAD_URL": "", "RFA_LLM_MODE": "mock"})  # 빈 값이면 기본 주소
     assert str(defaults.head._http.base_url) == "http://127.0.0.1:8791"
     assert str(defaults.approvals._http.base_url) == "http://127.0.0.1:8790"
 

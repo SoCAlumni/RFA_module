@@ -167,7 +167,13 @@ class RuleLLM:
 
 
 def make_llm(env: Mapping[str, str]) -> LLM:
-    mode = env.get("RFA_LLM_MODE", "mock")
+    mode = env.get("RFA_LLM_MODE") or ""
+    if not mode:
+        # 값이 빠졌다고 규칙 기반 흉내로 조용히 바꾸면 가짜 초안이 결재함에 올라간다
+        raise RuntimeError(
+            "RFA_LLM_MODE is not set (mock | openrouter | nvidia | gemini | anthropic); "
+            "set RFA_LLM_MODE=mock explicitly to run without an LLM"
+        )
     if mode == "mock":
         return RuleLLM()
     if mode == "anthropic":

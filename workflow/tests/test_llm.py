@@ -188,7 +188,9 @@ def test_rule_llm_copies_knowledge_or_declines():
 
 
 def test_make_llm():
-    assert isinstance(make_llm({}), RuleLLM)
+    assert isinstance(make_llm({"RFA_LLM_MODE": "mock"}), RuleLLM)
+    with pytest.raises(RuntimeError, match="RFA_LLM_MODE is not set"):
+        make_llm({})
     real = make_llm(
         {"RFA_LLM_MODE": "anthropic", "ANTHROPIC_API_KEY": "k", "ANTHROPIC_BASE_URL": ""}
     )
