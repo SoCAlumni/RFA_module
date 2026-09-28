@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RFA approvals contract (결재 백엔드)
-  version: 0.2.0
+  version: 0.3.0
   description: |
     사람 결재 안건의 저장·조회·승인·거절. 서버는 RFA_module 의 services/approvals (127.0.0.1:8790).
 
@@ -109,8 +109,18 @@ paths:
       description: |
         게시까지 한 요청 안에서 끝난다. 채널 게시가 실패하면 502 를 돌려주고 안건은 approved 에 머문다.
         그 상태에서 다시 approve 하면 게시만 다시 시도한다.
+
+        v0.3.0: 본문 `{draft}` 는 선택이다. 사람이 고친 최종 본문을 보내면 pending 에서만 받아
+        게시 전에 draft 를 바꾸고, 원래 초안을 `edits` 에 남긴다(이벤트 `human approved "edited"`).
+        본문이 없거나 draft 가 비었거나 저장된 초안과 같으면 지금처럼 저장된 초안을 게시한다.
+        approved(게시 재시도) 상태에서 다른 본문이 오면 409 `edit_not_allowed` — 고친 본문은 한 번만 확정한다.
       parameters:
         - $ref: "#/components/parameters/id"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ApproveRequest" }
       responses:
         "200":
           description: 게시됨 (status posted, posted_url 채워짐)
@@ -120,7 +130,7 @@ paths:
         "404":
           description: 없는 안건
         "409":
-          description: pending 도 approved 도 아닌 안건
+          description: pending 도 approved 도 아닌 안건, 또는 approved 에서 고친 본문(edit_not_allowed)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -261,6 +271,18 @@ components:
       required: [reason]
       properties:
         reason: { type: string, minLength: 1, examples: ["릴리즈 날짜가 들어가 있음"] }
+    ApproveRequest:
+      type: object
+      description: 승인 본문(선택). 사람이 고친 최종 초안. 없거나 비면 저장된 초안을 게시한다
+      properties:
+        draft: { type: [string, "null"], examples: ["안녕하세요. ORBIT 벤치마크 결과는 공개 전입니다."] }
+    Edit:
+      type: object
+      required: [draft, at]
+      description: 승인 때 사람이 고치기 전의 원래 초안
+      properties:
+        draft: { type: string }
+        at: { type: string, format: date-time }
     Approval:
       allOf:
         - $ref: "#/components/schemas/CreateApprovalRequest"
@@ -274,6 +296,10 @@ components:
               type: array
               description: 거절 이력, 오래된 순
               items: { $ref: "#/components/schemas/Rejection" }
+            edits:
+              type: array
+              description: 승인 때 사람이 고친 경우 원래 초안(고친 본문은 draft). v0.3.0
+              items: { $ref: "#/components/schemas/Edit" }
             posted_url: { type: [string, "null"], description: 게시된 답글 주소 }
             events:
               type: array

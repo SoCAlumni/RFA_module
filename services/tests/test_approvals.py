@@ -193,6 +193,58 @@ def test_approve_unknown_is_404(client):
     assert client.post("/approvals/9/approve").status_code == 404
 
 
+# ---- 고친 초안으로 승인 (v0.3.0) ---------------------------------------------------
+
+
+def test_approve_with_edited_draft_publishes_edit_and_keeps_original(client, publisher):
+    create(client)
+    edited = "안녕하세요. 사람이 고친 답입니다."
+    res = client.post("/approvals/1/approve", json={"draft": edited})
+    assert res.status_code == 200
+    a = res.json()
+    assert a["status"] == "posted"
+    assert a["draft"] == edited
+    assert [e["draft"] for e in a["edits"]] == [GITHUB["draft"]]
+    assert publisher.published == [("github", GITHUB["target"], edited)]
+    assert ("human", "approved") in whats(a)
+    assert any(e["what"] == "approved" and e["detail"] == "edited" for e in a["events"])
+
+
+@pytest.mark.parametrize(
+    "body", [None, {}, {"draft": None}, {"draft": "  "}, {"draft": GITHUB["draft"]}]
+)
+def test_approve_without_edit_is_unchanged(client, publisher, body):
+    create(client)
+    res = client.post("/approvals/1/approve", **({} if body is None else {"json": body}))
+    assert res.status_code == 200
+    a = res.json()
+    assert a["draft"] == GITHUB["draft"]
+    assert a["edits"] == []
+    assert publisher.published == [("github", GITHUB["target"], GITHUB["draft"])]
+
+
+def test_edited_draft_only_in_pending(client, publisher):
+    create(client)
+    publisher.fail = True
+    assert client.post("/approvals/1/approve", json={"draft": "고친 답"}).status_code == 502
+    publisher.fail = False
+    # approved(게시 재시도)에서 또 다른 본문은 받지 않는다
+    res = client.post("/approvals/1/approve", json={"draft": "또 고친 답"})
+    assert res.status_code == 409
+    assert res.json()["error"] == "edit_not_allowed"
+    # 같은(이미 확정된) 본문이나 본문 없이 재시도하면 고친 본문을 게시한다
+    a = client.post("/approvals/1/approve", json={"draft": "고친 답"}).json()
+    assert a["status"] == "posted"
+    assert publisher.published == [("github", GITHUB["target"], "고친 답")]
+
+
+def test_edited_draft_rejected_approval_is_409(client, publisher):
+    create(client)
+    reject(client, 1)
+    assert client.post("/approvals/1/approve", json={"draft": "고친 답"}).status_code == 409
+    assert publisher.published == []
+
+
 # ---- 거절과 재작성 --------------------------------------------------------------
 
 

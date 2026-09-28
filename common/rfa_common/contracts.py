@@ -170,11 +170,27 @@ class RejectRequest(BaseModel):
     reason: Annotated[str, Field(min_length=1)]
 
 
+class ApproveRequest(BaseModel):
+    """승인 본문(선택). 사람이 고친 최종 초안. 없거나 비면 저장된 초안을 게시한다."""
+
+    draft: str | None = None
+
+
+class Edit(BaseModel):
+    """사람이 승인하며 고치기 전의 원래 초안."""
+
+    draft: str
+    at: datetime
+
+
 class Approval(CreateApprovalRequest):
     id: int
     status: ApprovalStatus
     round: Annotated[int, Field(ge=1)] = 1
     rejections: list[Rejection] = Field(default_factory=list)
+    edits: list[Edit] = Field(
+        default_factory=list, description="승인 때 사람이 고친 경우 원래 초안(고친 본문은 draft)"
+    )
     posted_url: str | None = None
     events: list[Event] = Field(default_factory=list)
     created_at: datetime

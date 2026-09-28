@@ -180,6 +180,8 @@ SCHEMA_MODELS: dict[str, list[type[BaseModel]]] = {
         c.CreateApprovalRequest,
         c.ReviseApprovalRequest,
         c.RejectRequest,
+        c.ApproveRequest,
+        c.Edit,
         c.Approval,
         c.ApprovalSummary,
     ],

@@ -25,8 +25,10 @@ from rfa_common.contracts import (
     Approval,
     ApprovalStatus,
     ApprovalSummary,
+    ApproveRequest,
     ChannelKind,
     CreateApprovalRequest,
+    Edit,
     Rejection,
     RejectRequest,
     ReviseApprovalRequest,
@@ -58,7 +60,7 @@ def create_app(
     publish_to = publisher if publisher is not None else make_publisher(env)
     approving = threading.Lock()  # 승인 버튼 연타로 두 번 게시되지 않게
 
-    app = FastAPI(title="RFA approvals", version="0.2.0")
+    app = FastAPI(title="RFA approvals", version="0.3.0")
     origins = [o.strip() for o in env.get("RFA_CORS_ORIGINS", "*").split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"]
@@ -99,11 +101,31 @@ def create_app(
         return store.get(approval_id)
 
     @app.post("/approvals/{approval_id}/approve", response_model=Approval, tags=["frontend"])
-    def approve(approval_id: int) -> Approval:
-        """pending → approved → (게시) → posted. approved 에서 부르면 게시만 다시 시도한다."""
+    def approve(approval_id: int, body: ApproveRequest | None = None) -> Approval:
+        """pending → approved → (게시) → posted. approved 에서 부르면 게시만 다시 시도한다.
+
+        본문 draft 가 저장된 초안과 다르면(사람이 고침) pending 에서만 받아 고친 본문을 게시하고,
+        원래 초안은 edits 에 남긴다. approved(게시 재시도)에서 고친 본문이 오면 409.
+        """
+        edited = (body.draft or "").strip() if body is not None else ""
         with approving:
             approval = store.get(approval_id)
-            if approval.status == S.PENDING:
+            if edited and edited != approval.draft.strip():
+                if approval.status != S.PENDING:
+                    return JSONResponse(
+                        status_code=409,
+                        content={
+                            "error": "edit_not_allowed",
+                            "detail": f"고친 초안은 pending 에서만 받는다 (지금 {approval.status})",
+                        },
+                    )
+
+                def put_edit(a: Approval) -> None:
+                    a.edits.append(Edit(draft=a.draft, at=now()))
+                    a.draft = edited
+
+                approval = store.advance(approval_id, Step(S.APPROVED, "human", "edited", put_edit))
+            elif approval.status == S.PENDING:
                 approval = store.advance(approval_id, Step(S.APPROVED, "human"))
             elif approval.status != S.APPROVED:
                 raise InvalidTransition(approval.status, S.APPROVED)
