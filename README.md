@@ -6,6 +6,8 @@ GitHub·Slack 에서 멘션을 받아 → head agent 에게 검열된 지식을 
 - **처음이면 (사람이든 AI든): [BOOTSTRAP.md](BOOTSTRAP.md)** — 역할별 읽기 경로, 5분 실행, API 지도
 - 계획과 결정: [docs/plan.md](docs/plan.md)
 - 구조: [docs/architecture.md](docs/architecture.md)
+- **웹 프런트가 결재 API 를 쓸 때**: [docs/frontend_api.md](docs/frontend_api.md) — 화면↔API, TypeScript 타입, 상태별 UI 규칙, fetch 클라이언트
+- **다른 에이전트가 API 를 쓸 때**: [docs/agent_api.md](docs/agent_api.md) — 목적별 요청·응답·오류, 권장 흐름, 프롬프트용 요약
 - **팀 경계 API**: [docs/contracts.md](docs/contracts.md) · Redoc https://socalumni.github.io/RFA_module/ (`contracts/*.openapi.yaml` 에서 자동 생성)
 - 개발 단계와 현재 상태: [docs/develop_plan.md](docs/develop_plan.md)
 - v1 에서 바뀐 것: [docs/migration.md](docs/migration.md)
